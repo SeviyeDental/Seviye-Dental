@@ -51,14 +51,21 @@
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
 
         @media (max-width: 768px) {
-            .mobile-bottom-nav { 
-                position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #E2E8F0; z-index: 100; 
-                display: flex; justify-content: flex-start; overflow-x: auto; padding: 0.75rem 0.5rem; gap: 0.5rem; 
-                box-shadow: 0 -10px 20px -5px rgb(0 0 0 / 0.1);
-                scrollbar-width: none; /* Firefox için scroll gizleme */
+            .mobile-bottom-nav-container {
+                position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #E2E8F0; z-index: 100;
+                display: flex; align-items: center; box-shadow: 0 -10px 20px -5px rgb(0 0 0 / 0.1);
+                padding-bottom: env(safe-area-inset-bottom);
             }
-            .mobile-bottom-nav::-webkit-scrollbar { display: none; } /* Chrome/Safari için scroll gizleme */
-            .mobile-bottom-nav > button { min-width: 78px; max-width: 85px; flex-shrink: 0; }
+            .mobile-bottom-nav { 
+                flex: 1; display: flex; justify-content: flex-start; overflow-x: auto; padding: 0.75rem 0.5rem; gap: 0.5rem; 
+                scrollbar-width: none;
+            }
+            .mobile-bottom-nav::-webkit-scrollbar { display: none; }
+            .mobile-bottom-nav > button { min-width: 75px; max-width: 80px; flex-shrink: 0; }
+            .mobile-logout-btn {
+                border-left: 1px solid #E2E8F0; padding: 0.75rem 1rem; display: flex; flex-shrink: 0;
+                flex-col: column; align-items: center; justify-content: center; gap: 1px; min-width: 70px;
+            }
             .sidebar { display: none !important; }
             .main-content { padding-bottom: calc(100px + env(safe-area-inset-bottom)); margin-left: 0 !important; width: 100% !important; min-height: 100vh; background-color: var(--bg-main); }
         }
@@ -798,15 +805,22 @@
                         </div>
                     </aside>
 
-                    <div className="mobile-bottom-nav md:hidden">
-                        <NavItem id="dashboard" icon="layout-dashboard" label="Panel" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('dashboard')} />
-                        <NavItem id="calendar" icon="calendar" label="Ajanda" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('calendar')} />
-                        <NavItem id="surgeries" icon="scissors" label="Ameliyat" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('surgeries')} />
-                        <NavItem id="doctors" icon="user-round" label="Hekimler" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('doctors')} />
-                        <NavItem id="patients" icon="users" label="Hastalar" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('patients')} />
-                        <NavItem id="stock" icon="package" label="Stok" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('stock')} />
-                        <NavItem id="warehouses" icon="map-pin" label="Depolar" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('warehouses')} />
-                        <NavItem id="history" icon="clipboard-list" label="Geçmiş" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('history')} />
+                    {/* MOBİL ALT NAVİGASYON - SABİT ÇIKIŞ BUTONLU YENİ TASARIM */}
+                    <div className="mobile-bottom-nav-container md:hidden">
+                        <div className="mobile-bottom-nav">
+                            <NavItem id="dashboard" icon="layout-dashboard" label="Panel" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('dashboard')} />
+                            <NavItem id="calendar" icon="calendar" label="Ajanda" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('calendar')} />
+                            <NavItem id="surgeries" icon="scissors" label="Ameliyat" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('surgeries')} />
+                            <NavItem id="doctors" icon="user-round" label="Hekimler" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('doctors')} />
+                            <NavItem id="patients" icon="users" label="Hastalar" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('patients')} />
+                            <NavItem id="stock" icon="package" label="Stok" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('stock')} />
+                            <NavItem id="warehouses" icon="map-pin" label="Depolar" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('warehouses')} />
+                            <NavItem id="history" icon="clipboard-list" label="Geçmiş" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('history')} />
+                        </div>
+                        <button onClick={handleLogout} className="mobile-logout-btn text-red-500 font-black hover:bg-red-50 transition-colors">
+                            <Icon name="log-out" size={18} className="text-red-500" />
+                            <span className="text-[9px] uppercase tracking-tighter">ÇIKIŞ</span>
+                        </button>
                     </div>
 
                     <main className="main-content flex-1 md:ml-72 p-4 md:p-10 bg-slate-50">
@@ -1130,7 +1144,7 @@
                                             {['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'].map(d => <div key={d} className="p-4 text-center bg-slate-50 border-r border-b text-[10px] font-black text-slate-400 uppercase tracking-widest">{d}</div>)}
                                             {calendarDays.map((d, i) => (
                                                 <div key={i} onClick={() => { if(d) { setModalType('calendarNote'); setFormData({...formData, calendarDate: d.dateStr}); setShowModal(true); } }} className={`min-h-[80px] md:min-h-[130px] p-2 md:p-4 border-r border-b border-slate-100 transition-all ${d ? 'hover:bg-blue-50 cursor-pointer' : 'bg-slate-50/30'} ${d?.dateStr === new Date().toISOString().split('T')[0] ? 'bg-blue-50' : ''}`}>
-                                                    {d && (<><span className="text-sm font-black text-slate-400">{d.day}</span><div className="mt-1 space-y-1">{d.notes.map(n => (<div key={n.id} className="text-[9px] bg-white border border-slate-200 p-1.5 rounded-lg font-black truncate leading-none">• {n.note}</div>))}</div></>)}
+                                                    {d && (<><span className="text-sm font-black text-slate-400">{d.day}</span><div className="mt-1 space-y-1">{d.notes.map(n => (<div key={n.id} className="text-[9px] bg-white border border-slate-200 p-1.5 rounded-lg font-black truncate leading-none">• {n.note}</div>))}</div></></)}
                                                 </div>
                                             ))}
                                         </div>
