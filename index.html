@@ -4,74 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Seviye Dental Medikal - Profesyonel Bulut Yönetim Sistemi</title>
-
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
     <script src="https://unpkg.com/lucide@latest"></script>
-
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
         window.FirebaseSDK = { initializeApp, getAuth, signInAnonymously, onAuthStateChanged, getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch };
     </script>
-
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
-        
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght400;500;600;700;900&display=swap');
         :root { --bg-main: #F8FAFC; }
-
-        html, body { 
-            height: 100%; margin: 0; padding: 0; background-color: var(--bg-main);
-            font-family: 'Inter', sans-serif; color: #1E293B; overflow-x: hidden; -webkit-tap-highlight-color: transparent;
-            overscroll-behavior-y: none;
-        }
-
+        html, body { height: 100%; margin: 0; padding: 0; background-color: var(--bg-main); font-family: 'Inter', sans-serif; color: #1E293B; overflow-x: hidden; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
         #root { min-height: 100vh; background-color: var(--bg-main); }
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
         .animate-in { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
-
         @media (max-width: 768px) {
-            .mobile-bottom-nav-container {
-                position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #E2E8F0; z-index: 100;
-                display: flex; align-items: center; box-shadow: 0 -10px 20px -5px rgb(0 0 0 / 0.1);
-                padding-bottom: env(safe-area-inset-bottom);
-            }
-            .mobile-bottom-nav { 
-                flex: 1; display: flex; justify-content: flex-start; overflow-x: auto; padding: 0.75rem 0.5rem; gap: 0.5rem; 
-                scrollbar-width: none;
-            }
+            .mobile-bottom-nav-container { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #E2E8F0; z-index: 100; display: flex; align-items: center; box-shadow: 0 -10px 20px -5px rgb(0 0 0 / 0.1); padding-bottom: env(safe-area-inset-bottom); }
+            .mobile-bottom-nav { flex: 1; display: flex; justify-content: flex-start; overflow-x: auto; padding: 0.75rem 0.5rem; gap: 0.5rem; scrollbar-width: none; }
             .mobile-bottom-nav::-webkit-scrollbar { display: none; }
             .mobile-bottom-nav > button { min-width: 75px; max-width: 80px; flex-shrink: 0; }
-            .mobile-logout-btn {
-                border-left: 1px solid #E2E8F0; padding: 0.75rem 1rem; display: flex; flex-direction: column;
-                align-items: center; justify-content: center; gap: 1px; min-width: 70px; flex-shrink: 0;
-            }
+            .mobile-logout-btn { border-left: 1px solid #E2E8F0; padding: 0.75rem 1rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 70px; flex-shrink: 0; }
             .sidebar { display: none !important; }
             .main-content { padding-bottom: calc(100px + env(safe-area-inset-bottom)); margin-left: 0 !important; width: 100% !important; min-height: 100vh; background-color: var(--bg-main); }
         }
-        
         select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1.25rem; }
-        input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
 <body class="bg-slate-50">
     <div id="root"></div>
-
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
         const { initializeApp, getAuth, signInAnonymously, onAuthStateChanged, getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch } = window.FirebaseSDK;
@@ -92,14 +62,10 @@
         const appId = 'clinic-erp-v2';
 
         const PERMISSIONS = [
-            { id: 'dashboard', label: 'Panel' },
-            { id: 'calendar', label: 'Ajanda' },
-            { id: 'surgeries', label: 'Ameliyat' },
-            { id: 'doctors', label: 'Hekimler' },
-            { id: 'patients', label: 'Hastalar' },
-            { id: 'stock', label: 'Stok' },
-            { id: 'warehouses', label: 'Depolar' },
-            { id: 'history', label: 'Geçmiş' }
+            { id: 'dashboard', label: 'Panel' }, { id: 'calendar', label: 'Ajanda' },
+            { id: 'surgeries', label: 'Ameliyat' }, { id: 'doctors', label: 'Hekimler' },
+            { id: 'patients', label: 'Hastalar' }, { id: 'stock', label: 'Stok' },
+            { id: 'warehouses', label: 'Depolar' }, { id: 'history', label: 'Geçmiş' }
         ];
 
         const Icon = ({ name, size = 20, className = "", title="" }) => {
@@ -124,136 +90,33 @@
                 onClick={() => hasPermission && setActive(id)} 
                 disabled={!hasPermission}
                 className={`flex-1 md:w-full flex flex-col md:flex-row items-center gap-1 md:gap-4 px-1 md:px-5 py-2 md:py-4 rounded-xl md:rounded-2xl font-bold transition-all relative
-                ${!hasPermission ? 'opacity-40 cursor-not-allowed bg-transparent' : 
-                  active === id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 md:hover:text-slate-200'}`}
+                ${!hasPermission ? 'opacity-40 cursor-not-allowed bg-transparent' : active === id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 md:hover:text-slate-200'}`}
             >
                 <Icon name={icon} size={20} className={active === id ? "text-white" : "text-slate-400"} />
                 <span className="text-[10px] md:text-sm truncate font-black md:font-bold">{label}</span>
-                {!hasPermission && <div className="absolute right-4 hidden md:block"><Icon name="lock" size={14} className="text-slate-500" /></div>}
             </button>
         );
 
         const InlineStockInput = ({ initialValue, onSave }) => {
             const [val, setVal] = useState(initialValue || 0);
             useEffect(() => { setVal(initialValue || 0); }, [initialValue]);
-            const handleBlur = () => {
-                const num = parseInt(val);
-                if (!isNaN(num) && num !== (initialValue || 0)) onSave(num);
-                else setVal(initialValue || 0);
-            };
             return (
-                <input type="number" className={`w-full text-center text-xs font-black outline-none bg-transparent border-b border-transparent focus:border-blue-500 focus:bg-white rounded transition-all ${val > 0 ? 'text-slate-800' : 'text-slate-300'}`} value={val === 0 && (initialValue || 0) === 0 ? '' : val} placeholder="0" onChange={e => setVal(e.target.value)} onBlur={handleBlur} onKeyDown={e => { if(e.key === 'Enter') e.target.blur(); }} />
+                <input type="number" className="w-full text-center text-xs font-black outline-none bg-transparent border-b border-transparent focus:border-blue-500 focus:bg-white rounded transition-all text-slate-800" value={val === 0 ? '' : val} placeholder="0" onChange={e => setVal(e.target.value)} onBlur={() => onSave(parseInt(val) || 0)} />
             );
         };
 
-        const SearchBar = ({ onSearch, externalValue }) => {
-            const [val, setVal] = useState(externalValue || '');
-            useEffect(() => { setVal(externalValue || ''); }, [externalValue]);
-            useEffect(() => {
-                const timer = setTimeout(() => { onSearch(val); }, 400);
-                return () => clearTimeout(timer);
-            }, [val, onSearch]);
-            return (
-                <form className="relative flex-1 md:w-64" onSubmit={e => e.preventDefault()}>
-                    <input 
-                        type="search" 
-                        placeholder="Arama yap..." 
-                        className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-bold shadow-sm" 
-                        value={val} 
-                        onChange={e => setVal(e.target.value)} 
-                    />
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300"><Icon name="search" size={18}/></div>
-                </form>
-            );
-        };
+        const SearchBar = ({ onSearch }) => (
+            <div className="relative flex-1 md:w-64">
+                <input type="search" placeholder="Arama yap..." className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold shadow-sm" onChange={e => onSearch(e.target.value)} />
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300"><Icon name="search" size={18}/></div>
+            </div>
+        );
 
-        const normalizeTr = (text) => {
-            if (text === null || text === undefined) return '';
-            const map = { 'ğ': 'g', 'ü': 'u', 'ş': 's', 'ı': 'i', 'ö': 'o', 'ç': 'c', 'Ğ': 'g', 'Ü': 'u', 'Ş': 's', 'İ': 'i', 'Ö': 'o', 'Ç': 'c' };
-            return String(text).toLocaleLowerCase('tr-TR').replace(/[ğüşıöçĞÜŞİÖÇ]/g, match => map[match] || match);
-        };
+        const normalizeTr = (text) => text ? String(text).toLocaleLowerCase('tr-TR').replace(/[ğüşıöçĞÜŞİÖÇ]/g, m => ({'ğ':'g','ü':'u','ş':'s','ı':'i','ö':'o','ç':'c','Ğ':'g','Ü':'u','Ş':'s','İ':'i','Ö':'o','Ç':'c'}[m])) : '';
 
         const App = () => {
             const [isLoggedIn, setIsLoggedIn] = useState(true);
-            const [currentAppUser, setCurrentAppUser] = useState({
-                sysUsername: 'Yönetici (Şifresiz)',
-                sysRole: 'admin',
-                sysPerms: ['all']
-            });
-            
+            const [currentAppUser] = useState({ sysUsername: 'Yönetici', sysRole: 'admin', sysPerms: ['all'] });
             const [fbUser, setFbUser] = useState(null);
             const [loading, setLoading] = useState(true);
-            const [activeTab, setActiveTab] = useState('dashboard');
-            
-            const [globalSearchTerm, setGlobalSearchTerm] = useState('');
-            const [externalSearchValue, setExternalSearchValue] = useState('');
-            const [consumptionSearch, setConsumptionSearch] = useState('');
-            const [patientSearch, setPatientSearch] = useState('');
-            
-            const [showModal, setShowModal] = useState(false);
-            const [modalType, setModalType] = useState('');
-            const [uiMessage, setUiMessage] = useState(null);
-            const [editItem, setEditItem] = useState(null);
-            const [lastAction, setLastAction] = useState(null);
-            const [notifiedSurgeries, setNotifiedSurgeries] = useState({});
-            
-            const [draggedCatId, setDraggedCatId] = useState(null);
-            const [draggedProductId, setDraggedProductId] = useState(null);
-
-            const [editingLogId, setEditingLogId] = useState(null);
-            const [editLogData, setEditLogData] = useState({ lotNo: '', toothNo: '', timestamp: '' });
-
-            const [appUsers, setAppUsers] = useState([]);
-            const [doctors, setDoctors] = useState([]);
-            const [patients, setPatients] = useState([]);
-            const [stockCategories, setStockCategories] = useState([]);
-            const [stockItems, setStockItems] = useState([]);
-            const [logs, setLogs] = useState([]);
-            const [calendarNotes, setCalendarNotes] = useState([]);
-            const [surgeries, setSurgeries] = useState([]);
-            const [warehouses, setWarehouses] = useState([]);
-            const [doctorVisits, setDoctorVisits] = useState([]);
-
-            const [loginData, setLoginData] = useState({ username: '', password: '' });
-            const [expandedCategories, setExpandedCategories] = useState({});
-            
-            const [newVisitNote, setNewVisitNote] = useState('');
-            const [visitReminderDate, setVisitReminderDate] = useState('');
-            const [visitReminderNote, setVisitReminderNote] = useState('');
-
-            const getLocalDatetime = () => {
-                const tzoffset = (new Date()).getTimezoneOffset() * 60000;
-                return new Date(Date.now() - tzoffset).toISOString().slice(0, 16);
-            };
-
-            const [formData, setFormData] = useState({ 
-                name: '', productCode: '', brand: 'BİLİMPLANT', counts: {},
-                note: '', tcNo: '', phone: '', address: '', detail: '', categoryId: '', 
-                patientId: '', doctorId: '', prosDoctorId: '', lotNo: '', implantSize: '', usedMaterials: '',
-                consumptionProducts: [{ id: Date.now(), categoryId: '', productId: '', quantity: 1, sourceDepo: '' }],
-                toothNumbers: [''], newPatientName: '', newPatientTc: '', newPatientPhone: '', 
-                newDoctorName: '', newDoctorDetail: '', newProsDoctorName: '', newProsDoctorDetail: '',
-                calendarDate: '', calendarNote: '', surgeryDate: '', surgeryType: '', notifyEmail: '',
-                fromDepo: '', toDepo: '', transferQty: 1, 
-                sysUsername: '', sysPassword: '', sysRole: 'user', sysPerms: [],
-                transactionDate: getLocalDatetime()
-            });
-            const [currentDate, setCurrentDate] = useState(new Date());
-
-            useEffect(() => {
-                let timer;
-                if (lastAction) { timer = setTimeout(() => { setLastAction(null); }, 10000); }
-                return () => clearTimeout(timer);
-            }, [lastAction]);
-
-            const normalizedStockItems = useMemo(() => {
-                const defaultDepo = warehouses.length > 0 ? warehouses[0].name : 'Ana Depo';
-                return stockItems.map(item => {
-                    let currentCounts = { ...(item.counts || {}) };
-                    let hasCounts = Object.keys(currentCounts).length > 0;
-                    if (!hasCounts && (item.count !== undefined && item.count !== null)) {
-                        currentCounts[defaultDepo] = parseInt(item.count) || 0;
-                    }
-                    return { ...item, counts: currentCounts, count: Object.values(currentCounts).reduce((a, b) => a + (parseInt(b) || 0), 0) };
-                });
-            },
+            const
