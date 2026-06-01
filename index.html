@@ -119,4 +119,379 @@
             const [currentAppUser] = useState({ sysUsername: 'Yönetici', sysRole: 'admin', sysPerms: ['all'] });
             const [fbUser, setFbUser] = useState(null);
             const [loading, setLoading] = useState(true);
-            const
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [globalSearchTerm, setGlobalSearchTerm] = useState('');
+            const [showModal, setShowModal] = useState(false);
+            const [modalType, setModalType] = useState('');
+            const [uiMessage, setUiMessage] = useState(null);
+            const [editItem, setEditItem] = useState(null);
+
+            const [appUsers, setAppUsers] = useState([]);
+            const [doctors, setDoctors] = useState([]);
+            const [patients, setPatients] = useState([]);
+            const [stockCategories, setStockCategories] = useState([]);
+            const [stockItems, setStockItems] = useState([]);
+            const [logs, setLogs] = useState([]);
+            const [calendarNotes, setCalendarNotes] = useState([]);
+            const [surgeries, setSurgeries] = useState([]);
+            const [warehouses, setWarehouses] = useState([]);
+            const [doctorVisits, setDoctorVisits] = useState([]);
+
+            const [newVisitNote, setNewVisitNote] = useState('');
+            const [visitReminderDate, setVisitReminderDate] = useState('');
+            const [visitReminderNote, setVisitReminderNote] = useState('');
+            const [currentDate, setCurrentDate] = useState(new Date());
+
+            const [formData, setFormData] = useState({ name: '', productCode: '', counts: {}, note: '', tcNo: '', phone: '', detail: '', categoryId: '', patientId: '', doctorId: '', sourceDepo: '', transferQty: 1, fromDepo: '', toDepo: '', consumptionProducts: [{ id: Date.now(), categoryId: '', productId: '', quantity: 1, sourceDepo: '' }] });
+
+            const showMessage = (text, type = "success") => { setUiMessage({ text, type }); setTimeout(() => setUiMessage(null), 3000); };
+
+            useEffect(() => {
+                return onAuthStateChanged(auth, async (user) => {
+                    if (!user) await signInAnonymously(auth);
+                    else setFbUser(user);
+                    setLoading(false);
+                });
+            }, []);
+
+            useEffect(() => {
+                if (!fbUser) return;
+                const sync = (col, setter) => onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', col)), (s) => setter(s.docs.map(d => ({ ...d.data(), id: d.id }))));
+                sync('appUsers', setAppUsers); sync('doctors', setDoctors); sync('patients', setPatients);
+                sync('stockCategories', setStockCategories); sync('stockItems', setStockItems); sync('logs', setLogs);
+                sync('calendarNotes', setCalendarNotes); sync('surgeries', setSurgeries); sync('warehouses', setWarehouses);
+                sync('doctorVisits', setDoctorVisits);
+            }, [fbUser]);
+
+            const normalizedStockItems = useMemo(() => {
+                const defDepo = warehouses[0]?.name || 'Ana Depo';
+                return stockItems.map(item => {
+                    let counts = { ...(item.counts || {}) };
+                    if (Object.keys(counts).length === 0 && item.count) counts[defDepo] = item.count;
+                    return { ...item, counts, count: Object.values(counts).reduce((a, b) => a + (parseInt(b) || 0), 0) };
+                });
+            }, [stockItems, warehouses]);
+
+            const activeReminders = useMemo(() => {
+                const todayStr = new Date().toISOString().split('T')[0];
+                return doctorVisits.filter(v => v.hasReminder && v.reminderDate === todayStr && !v.isCompleted);
+            }, [doctorVisits]);
+
+            const handleAddVisitLog = async (doctorId) => {
+                if (!newVisitNote.trim()) return;
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'doctorVisits'), {
+                        doctorId, visitDate: new Date().toLocaleString('tr-TR'), note: newVisitNote,
+                        hasReminder: !!visitReminderDate, reminderDate: visitReminderDate, reminderNote: visitReminderNote,
+                        isCompleted: false, timestamp: Date.now()
+                    });
+                    setNewVisitNote(''); setVisitReminderDate(''); setVisitReminderNote('');
+                    showMessage("Ziyaret günlüğü kaydedildi.");
+                } catch (e) { showMessage("Hata oluştu!", "error"); }
+            };
+
+            const handleDirectStockChange = async (item, warehouseName, newCount) => {
+                let counts = { ...(item.counts || {}) };
+                counts[warehouseName] = newCount;
+                const total = Object.values(counts).reduce((a, b) => a + (b || 0), 0);
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'stockItems', item.id), { counts, count: total });
+            };
+
+            const deleteRec = async (id, col) => {
+                if (confirm("Silmek istediğinize emin misiniz?")) {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+                    showMessage("Kayıt silindi.", "info");
+                }
+            };
+
+            const handleSave = async () => {
+                try {
+                    const colMap = { doctor: 'doctors', patient: 'patients', category: 'stockCategories', product: 'stockItems', warehouse: 'warehouses', surgery: 'surgeries' };
+                    if (editItem) {
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colMap[modalType], editItem.id), formData);
+                    } else {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colMap[modalType]), { ...formData, timestamp: Date.now() });
+                    }
+                    setShowModal(false); setFormData({ name: '', productCode: '', counts: {}, note: '', tcNo: '', phone: '', detail: '', categoryId: '', patientId: '', doctorId: '', sourceDepo: '', transferQty: 1, fromDepo: '', toDepo: '', consumptionProducts: [{ id: Date.now(), categoryId: '', productId: '', quantity: 1, sourceDepo: '' }] });
+                    showMessage("Başarıyla kaydedildi.");
+                } catch (e) { showMessage("Kaydedilemedi!", "error"); }
+            };
+
+            const calendarDays = useMemo(() => {
+                const y = currentDate.getFullYear(), m = currentDate.getMonth();
+                const total = new Date(y, m + 1, 0).getDate(), start = new Date(y, m, 1).getDay();
+                const days = [];
+                for (let i = 0; i < (start === 0 ? 6 : start - 1); i++) days.push(null);
+                for (let d = 1; d <= total; d++) {
+                    const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                    days.push({ day: d, dateStr: ds, notes: calendarNotes.filter(n => n.date === ds) });
+                }
+                return days;
+            }, [currentDate, calendarNotes]);
+
+            if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-blue-500 font-black animate-pulse">BAĞLANILIYOR...</div>;
+
+            return (
+                <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 relative">
+                    {uiMessage && <div className="fixed top-4 right-4 z-[200] px-6 py-4 rounded-2xl shadow-2xl text-white font-black bg-blue-600 text-sm">{uiMessage.text}</div>}
+
+                    <aside className="sidebar w-72 bg-slate-900 text-slate-400 p-6 flex flex-col h-screen fixed top-0 left-0 z-40 shadow-2xl">
+                        <div className="flex items-center gap-3 mb-8 px-2">
+                            <div className="bg-blue-600 p-2 rounded-xl text-white"><Icon name="shield-check" size={24} /></div>
+                            <span className="text-white font-black text-xl">Seviye Dental</span>
+                        </div>
+                        <nav className="flex-1 space-y-1">
+                            {PERMISSIONS.map(p => <NavItem key={p.id} id={p.id} icon={p.id==='dashboard'?'layout-dashboard':p.id==='calendar'?'calendar':p.id==='surgeries'?'scissors':p.id==='doctors'?'user-round':p.id==='patients'?'users':p.id==='stock'?'package':p.id==='warehouses'?'map-pin':'clipboard-list'} label={p.label} active={activeTab} setActive={setActiveTab} hasPermission={true} />)}
+                        </nav>
+                    </aside>
+
+                    <div className="mobile-bottom-nav-container md:hidden">
+                        <div className="mobile-bottom-nav">
+                            {PERMISSIONS.map(p => <NavItem key={p.id} id={p.id} icon={p.id==='dashboard'?'layout-dashboard':p.id==='calendar'?'calendar':p.id==='surgeries'?'scissors':p.id==='doctors'?'user-round':p.id==='patients'?'users':p.id==='stock'?'package':p.id==='warehouses'?'map-pin':'clipboard-list'} label={p.label} active={activeTab} setActive={setActiveTab} hasPermission={true} />)}
+                        </div>
+                        <button onClick={() => setIsLoggedIn(false)} className="mobile-logout-btn text-red-500 font-black"><Icon name="log-out" size={18} /><span className="text-[9px]">ÇIKIŞ</span></button>
+                    </div>
+
+                    <main className="main-content flex-1 md:ml-72 p-4 md:p-10 bg-slate-50">
+                        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                            <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Seviye Bulut Yönetimi</h2>
+                            <SearchBar onSearch={setGlobalSearchTerm} />
+                        </header>
+
+                        {activeTab === 'dashboard' && (
+                            <div className="space-y-6">
+                                {activeReminders.length > 0 && (
+                                    <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 rounded-[2.5rem] text-white shadow-xl">
+                                        <h3 className="font-black text-lg flex items-center gap-2 mb-4"><Icon name="bell-ring" size={24} /> Bugünün Hatırlatmaları</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {activeReminders.map(rem => (
+                                                <div key={rem.id} className="bg-white/10 p-4 rounded-2xl flex justify-between items-center">
+                                                    <div>
+                                                        <p className="text-xs font-black uppercase text-orange-100">Hekim: {doctors.find(d => d.id === rem.doctorId)?.name || 'Bilinmeyen'}</p>
+                                                        <p className="text-sm font-bold mt-1">"{rem.reminderNote}"</p>
+                                                    </div>
+                                                    <button onClick={async () => await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'doctorVisits', rem.id), { isCompleted: true })} className="bg-white text-orange-600 px-3 py-1.5 rounded-xl text-xs font-black">Tamamlandı</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="bg-white p-6 rounded-2xl shadow border text-center"><p className="text-slate-400 text-xs font-bold uppercase">Hekimler</p><h3 className="text-2xl font-black text-slate-800">{doctors.length}</h3></div>
+                                    <div className="bg-white p-6 rounded-2xl shadow border text-center"><p className="text-slate-400 text-xs font-bold uppercase">Hastalar</p><h3 className="text-2xl font-black text-slate-800">{patients.length}</h3></div>
+                                    <div className="bg-white p-6 rounded-2xl shadow border text-center"><p className="text-slate-400 text-xs font-bold uppercase">Stok Çeşidi</p><h3 className="text-2xl font-black text-slate-800">{normalizedStockItems.length}</h3></div>
+                                    <div className="bg-white p-6 rounded-2xl shadow border text-center"><p className="text-slate-400 text-xs font-bold uppercase">Ameliyatlar</p><h3 className="text-2xl font-black text-slate-800">{surgeries.length}</h3></div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'stock' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => { setModalType('category'); setEditItem(null); setShowModal(true); }} className="bg-slate-200 px-4 py-2 rounded-xl font-bold text-xs text-slate-600">+ Kategori</button>
+                                    <button onClick={() => { setModalType('product'); setEditItem(null); setShowModal(true); }} className="bg-blue-600 px-4 py-2 rounded-xl font-bold text-xs text-white">+ Ürün Ekle</button>
+                                </div>
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                    {stockCategories.map(cat => (
+                                        <div key={cat.id} className="bg-white p-6 rounded-3xl border shadow-sm">
+                                            <h3 className="font-black text-slate-800 border-b pb-2 mb-4 flex justify-between">
+                                                <span>📁 {cat.name}</span>
+                                                <button onClick={() => deleteRec(cat.id, 'stockCategories')} className="text-red-500"><Icon name="trash-2" size={16}/></button>
+                                            </h3>
+                                            <div className="space-y-3">
+                                                {normalizedStockItems.filter(i => i.categoryId === cat.id).map(item => (
+                                                    <div key={item.id} className="p-4 rounded-xl bg-slate-50 border flex justify-between items-center">
+                                                        <div><p className="font-bold text-slate-800 text-sm">{item.name}</p><span className="text-[10px] text-slate-400">{item.productCode}</span></div>
+                                                        <div className="flex gap-2">
+                                                            {warehouses.map(w => (
+                                                                <div key={w.id} className="bg-white p-1 rounded border text-center min-w-[50px]">
+                                                                    <p className="text-[8px] font-bold text-slate-400">{w.name}</p>
+                                                                    <InlineStockInput initialValue={item.counts[w.name] || 0} onSave={(val) => handleDirectStockChange(item, w.name, val)} />
+                                                                </div>
+                                                            ))}
+                                                            <button onClick={() => deleteRec(item.id, 'stockItems')} className="text-red-400 p-1"><Icon name="trash-2" size={14}/></button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'doctors' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-end"><button onClick={() => { setModalType('doctor'); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">+ Yeni Hekim</button></div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {doctors.filter(d => !globalSearchTerm || normalizeTr(d.name).includes(normalizeTr(globalSearchTerm))).map(doc => (
+                                        <div key={doc.id} className="bg-white p-6 rounded-3xl border shadow-sm relative">
+                                            <button onClick={() => deleteRec(doc.id, 'doctors')} className="absolute top-4 right-4 text-slate-300 hover:text-red-500"><Icon name="trash-2" size={18}/></button>
+                                            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4"><Icon name="user-round" size={24}/></div>
+                                            <h4 className="text-lg font-black text-slate-800 mb-1">{doc.name}</h4>
+                                            <p className="text-xs text-slate-400 mb-4">{doc.detail || 'Uzmanlık Belirtilmedi'}</p>
+                                            
+                                            <div className="bg-slate-50 p-4 rounded-2xl border space-y-3">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">✍️ Ziyaret Günlüğü Notu</p>
+                                                <textarea placeholder="Ziyaret notunu yazın..." className="w-full p-2 bg-white border rounded-xl text-xs outline-none h-16 resize-none" value={newVisitNote} onChange={e => setNewVisitNote(e.target.value)} />
+                                                <div className="flex gap-1">
+                                                    <input type="date" className="p-1 bg-white border rounded text-[10px] font-bold text-slate-600" value={visitReminderDate} onChange={e => setVisitReminderDate(e.target.value)} />
+                                                    <input type="text" placeholder="Anımsatıcı Notu" className="flex-1 p-1 bg-white border rounded text-[10px]" value={visitReminderNote} onChange={e => setVisitReminderNote(e.target.value)} />
+                                                </div>
+                                                <button onClick={() => handleAddVisitLog(doc.id)} className="w-full py-1.5 bg-slate-800 text-white font-black text-[10px] rounded-lg">Notu Kaydet</button>
+                                                
+                                                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                                                    {doctorVisits.filter(v => v.doctorId === doc.id).sort((a,b)=>b.timestamp-a.timestamp).map(v => (
+                                                        <div key={v.id} className="bg-white p-2 rounded-lg border text-[11px] shadow-sm relative">
+                                                            <button onClick={() => deleteRec(v.id, 'doctorVisits')} className="absolute right-1 top-1 text-slate-200 hover:text-red-500"><Icon name="x" size={10}/></button>
+                                                            <p className="text-[9px] font-bold text-blue-500">{v.visitDate}</p>
+                                                            <p className="text-slate-700 mt-0.5">"{v.note}"</p>
+                                                            {v.hasReminder && <p className="text-[9px] text-orange-600 font-black mt-1">🔔 {v.reminderDate}: {v.reminderNote}</p>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'patients' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-end"><button onClick={() => { setModalType('patient'); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">+ Yeni Hasta</button></div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {patients.filter(p => !globalSearchTerm || normalizeTr(p.name).includes(normalizeTr(globalSearchTerm))).map(p => (
+                                        <div key={p.id} className="bg-white p-6 rounded-3xl border shadow-sm relative">
+                                            <button onClick={() => deleteRec(p.id, 'patients')} className="absolute top-4 right-4 text-slate-300 hover:text-red-500"><Icon name="trash-2" size={18}/></button>
+                                            <h4 className="text-lg font-black text-slate-800 mb-1">👤 {p.name}</h4>
+                                            <p className="text-xs text-slate-400">TC: {p.tcNo || '-'}</p>
+                                            <p className="text-xs text-slate-400">Tel: {p.phone || '-'}</p>
+                                            {p.note && <p className="text-xs text-slate-500 italic mt-2">"{p.note}"</p>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'warehouses' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-end"><button onClick={() => { setModalType('warehouse'); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">+ Yeni Depo</button></div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {warehouses.map(w => (
+                                        <div key={w.id} className="bg-white p-6 rounded-2xl border shadow-sm flex justify-between items-center">
+                                            <div><h4 className="font-black text-slate-800">📍 {w.name}</h4><p className="text-[10px] text-slate-400 uppercase">Aktif Lokasyon</p></div>
+                                            <button onClick={() => deleteRec(w.id, 'warehouses')} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={18}/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'surgeries' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-end"><button onClick={() => { setModalType('surgery'); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">+ Ameliyat Ekle</button></div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {surgeries.map(s => (
+                                        <div key={s.id} className="bg-white p-6 rounded-2xl border shadow-sm relative">
+                                            <button onClick={() => deleteRec(s.id, 'surgeries')} className="absolute top-4 right-4 text-slate-300 hover:text-red-500"><Icon name="trash-2" size={18}/></button>
+                                            <h4 className="font-black text-slate-800 text-md">🦷 {s.surgeryType}</h4>
+                                            <p className="text-xs text-blue-600 font-bold mt-1">🗓️ {s.date}</p>
+                                            <p className="text-xs text-slate-500 mt-2">Hekim: {doctors.find(d=>d.id===s.doctorId)?.name || 'Bilinmiyor'}</p>
+                                            {s.note && <p className="text-xs text-slate-400 italic mt-1">"{s.note}"</p>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'calendar' && (
+                            <div className="bg-white p-6 rounded-3xl border shadow-sm">
+                                <div className="flex justify-between items-center mb-6">
+                                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))} className="p-2 bg-slate-100 rounded-lg"><Icon name="chevron-left" /></button>
+                                    <span className="font-black text-sm uppercase text-slate-600">{currentDate.toLocaleString('tr-TR', { month: 'long', year: 'numeric' })}</span>
+                                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))} className="p-2 bg-slate-100 rounded-lg"><Icon name="chevron-right" /></button>
+                                </div>
+                                <div className="calendar-grid border-l border-t rounded-2xl overflow-hidden">
+                                    {['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'].map(d => <div key={d} className="p-3 text-center bg-slate-50 border-r border-b text-[10px] font-black text-slate-400">{d}</div>)}
+                                    {calendarDays.map((d, i) => (
+                                        <div key={i} className={`min-h-[70px] p-2 border-r border-b text-left ${d ? 'bg-white' : 'bg-slate-50/50'}`}>
+                                            {d && <span className="text-xs font-bold text-slate-400">{d.day}</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'history' && (
+                            <div className="bg-white rounded-3xl border shadow-sm overflow-hidden overflow-x-auto">
+                                <table className="w-full text-left min-w-[600px]">
+                                    <thead><tr className="bg-slate-50 border-b text-slate-400 text-[10px] font-black uppercase"><th className="p-4">Tarih</th><th className="p-4">İşlem</th><th className="p-4">Açıklama</th></tr></thead>
+                                    <tbody className="divide-y text-xs text-slate-700">
+                                        {logs.slice().sort((a,b)=>b.timestamp-a.timestamp).map(l => (
+                                            <tr key={l.id} className="hover:bg-slate-50/50">
+                                                <td className="p-4 font-bold text-blue-600">{new Date(l.timestamp).toLocaleDateString('tr-TR')}</td>
+                                                <td className="p-4"><span className="px-2 py-1 rounded bg-blue-50 text-blue-600 font-bold">{l.action}</span></td>
+                                                <td className="p-4">{l.description}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </main>
+
+                    {showModal && (
+                        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+                                <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+                                    <h3 className="text-lg font-black text-slate-900 uppercase">Yeni Kayıt Formu</h3>
+                                    <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-red-500"><Icon name="x" size={20} /></button>
+                                </div>
+                                <div className="p-6 space-y-4">
+                                    <InputField label="Başlık / İsim" value={formData.name} onChange={v => setFormData({...formData, name: v})} />
+                                    {modalType === 'doctor' && <InputField label="Uzmanlık Alanı / Detay" value={formData.detail} onChange={v => setFormData({...formData, detail: v})} />}
+                                    {modalType === 'patient' && (
+                                        <>
+                                            <InputField label="TC Kimlik No" value={formData.tcNo} onChange={v => setFormData({...formData, tcNo: v})} />
+                                            <InputField label="Telefon" value={formData.phone} onChange={v => setFormData({...formData, phone: v})} />
+                                            <InputField label="Özel Not" value={formData.note} onChange={v => setFormData({...formData, note: v})} />
+                                        </>
+                                    )}
+                                    {modalType === 'product' && (
+                                        <>
+                                            <InputField label="Ürün Kodu" value={formData.productCode} onChange={v => setFormData({...formData, productCode: v})} />
+                                            <select className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs" value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})}><option value="">Kategori Seçin</option>{stockCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                                        </>
+                                    )}
+                                    {modalType === 'surgery' && (
+                                        <>
+                                            <InputField label="Tarih (YYYY-MM-DD)" value={formData.date} onChange={v => setFormData({...formData, date: v})} />
+                                            <select className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs" value={formData.doctorId} onChange={e => setFormData({...formData, doctorId: e.target.value})}><option value="">Hekim Seçin</option>{doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+                                            <InputField label="Notlar" value={formData.note} onChange={v => setFormData({...formData, note: v})} />
+                                        </>
+                                    )}
+                                </div>
+                                <div className="p-6 bg-slate-50 flex gap-2">
+                                    <button onClick={() => setShowModal(false)} className="flex-1 py-3 bg-white border rounded-xl font-bold text-xs text-slate-400">İptal</button>
+                                    <button onClick={handleSave} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl text-xs shadow-lg">KAYDET</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const InputField = ({ label, value, onChange }) => (
+            <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">{label}</label>
+                <input type="text" className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs outline-none focus:border-blue-500" value={value || ''} onChange={e => onChange(e.target.value)} />
+            </div>
+        );
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
