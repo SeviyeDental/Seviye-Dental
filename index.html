@@ -63,8 +63,8 @@
             .mobile-bottom-nav::-webkit-scrollbar { display: none; }
             .mobile-bottom-nav > button { min-width: 75px; max-width: 80px; flex-shrink: 0; }
             .mobile-logout-btn {
-                border-left: 1px solid #E2E8F0; padding: 0.75rem 1rem; display: flex; flex-shrink: 0;
-                flex-col: column; align-items: center; justify-content: center; gap: 1px; min-width: 70px;
+                border-left: 1px solid #E2E8F0; padding: 0.75rem 1rem; display: flex; flex-direction: column;
+                align-items: center; justify-content: center; gap: 1px; min-width: 70px; flex-shrink: 0;
             }
             .sidebar { display: none !important; }
             .main-content { padding-bottom: calc(100px + env(safe-area-inset-bottom)); margin-left: 0 !important; width: 100% !important; min-height: 100vh; background-color: var(--bg-main); }
@@ -805,7 +805,7 @@
                         </div>
                     </aside>
 
-                    {/* MOBİL ALT NAVİGASYON - SABİT ÇIKIŞ BUTONLU YENİ TASARIM */}
+                    {/* MOBİL ALT NAVİGASYON - TEMİZLENMİŞ SABİT ÇIKIŞ BUTONLU TASARIM */}
                     <div className="mobile-bottom-nav-container md:hidden">
                         <div className="mobile-bottom-nav">
                             <NavItem id="dashboard" icon="layout-dashboard" label="Panel" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('dashboard')} />
