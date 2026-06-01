@@ -16,7 +16,6 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <!-- Lucide Icons -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <!-- SheetJS (Excel Export) -->
@@ -32,7 +31,7 @@
     </script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=400;500;600;700;900&display=swap');
         
         :root { --bg-main: #F8FAFC; }
 
@@ -172,135 +171,10 @@
             return String(text).toLocaleLowerCase('tr-TR').replace(/[ğüşıöçĞÜŞİÖÇ]/g, match => map[match] || match);
         };
 
-        // Her Hekim Kartı İçin Ayrı Bir "Not Şablonu" Yöneten Alt Bileşen (Yeni Eklenen Kritik Kısım)
-        const DoctorVisitManager = ({ doctorId, doctorName, doctorVisits, onAddVisit, onDeleteVisit, onToggleReminder, logs }) => {
-            const [note, setNote] = useState('');
-            const [reminderDate, setReminderDate] = useState('');
-            const [reminderNote, setReminderNote] = useState('');
-
-            const handleSubmit = async () => {
-                if (!note.trim()) { alert("Lütfen bir ziyaret notu yazın!"); return; }
-                
-                // Üst bileşene veriyi gönderiyoruz
-                await onAddVisit(doctorId, note, reminderDate, reminderNote);
-                
-                // NOT KAYDEDİLDİKTEN SONRA ŞABLONU ANINDA SIFIRLAYIP BOŞALTIYORUZ (İSTEDİĞİN ÖZELLİK)
-                setNote('');
-                setReminderDate('');
-                setReminderNote('');
-            };
-
-            const specificVisits = useMemo(() => {
-                return doctorVisits.filter(v => v.doctorId === doctorId).sort((a,b) => b.timestamp - a.timestamp);
-            }, [doctorVisits, doctorId]);
-
-            const relatedLogs = useMemo(() => {
-                return logs.filter(log => log.type === 'stok_cikis' && (
-                    log.patientId === doctorId || log.doctorId === doctorId || log.prosDoctorId === doctorId ||
-                    (log.description && log.description.includes(doctorName))
-                )).sort((a, b) => b.timestamp - a.timestamp);
-            }, [logs, doctorId, doctorName]);
-
-            return (
-                <div className="mt-6 mb-6 bg-slate-50 p-4 rounded-[2rem] border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1">
-                        <Icon name="notebook" size={14}/> Ziyaret Günlüğü (Yeni Şablon)
-                    </p>
-                    
-                    {/* Giriş Şablon Alanı */}
-                    <div className="space-y-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm mb-4">
-                        <textarea 
-                            placeholder="Bu ziyarette ne konuşuldu? (Notu kaydettiğinizde bu şablon sıfırlanıp alta inecektir...)" 
-                            className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none text-xs font-medium focus:border-blue-500 transition-all h-20 resize-none"
-                            value={note}
-                            onChange={e => setNote(e.target.value)}
-                        />
-                        
-                        <div className="p-3 bg-orange-50/40 border border-orange-100/70 rounded-xl space-y-2">
-                            <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider flex items-center gap-1">
-                                <Icon name="bell" size={12}/> Bu Ziyarete Anımsatıcı Bağla
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                                <input 
-                                    type="date" 
-                                    className="p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none text-slate-600"
-                                    value={reminderDate}
-                                    onChange={e => setReminderDate(e.target.value)}
-                                />
-                                <input 
-                                    type="text" 
-                                    placeholder="Hatırlatma detayı (Örn: Numune greft bırakılacak)" 
-                                    className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none text-slate-600"
-                                    value={reminderNote}
-                                    onChange={e => setReminderNote(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        <button 
-                            onClick={handleSubmit}
-                            className="w-full py-2.5 bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-blue-700 shadow-md transition-all"
-                        >
-                            Ziyareti Günlüğe Kaydet (Şablonu Yenile)
-                        </button>
-                    </div>
-
-                    {/* Kaydedilen ve Alta İnen Notlar Kronolojisi */}
-                    {specificVisits.length > 0 && (
-                        <div className="pt-2 space-y-3 max-h-52 overflow-y-auto custom-scrollbar pr-1">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Kaydedilen Geçmiş Notlar ({specificVisits.length})</p>
-                            {specificVisits.map(v => (
-                                <div key={v.id} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm relative group/visit animate-in">
-                                    <button 
-                                        onClick={() => onDeleteVisit(v.id, 'doctorVisits')}
-                                        className="absolute right-2 top-2 text-slate-200 hover:text-red-500 opacity-0 group-hover/visit:opacity-100 transition-all"
-                                    >
-                                        <Icon name="x" size={12}/>
-                                    </button>
-                                    <p className="text-[9px] font-black text-blue-600 mb-1 flex items-center gap-1">
-                                        <Icon name="clock" size={10}/> {v.visitDate}
-                                    </p>
-                                    <p className="text-xs font-bold text-slate-700 leading-normal">"{v.note}"</p>
-                                    {v.hasReminder && (
-                                        <div className={`mt-2 p-1.5 rounded-lg text-[9px] font-black border flex justify-between items-center ${v.isCompleted ? 'bg-slate-100 border-slate-200 text-slate-400 line-through' : 'bg-amber-50 border-amber-100 text-amber-700'}`}>
-                                            <span>🔔 {v.reminderDate} -> {v.reminderNote}</span>
-                                            <button 
-                                                onClick={() => onToggleReminder(v.id, v.isCompleted)}
-                                                className="text-[8px] bg-white px-1.5 py-0.5 rounded border border-amber-200 shadow-sm hover:bg-amber-100"
-                                            >
-                                                {v.isCompleted ? 'Aktif Et' : 'Kapat'}
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {relatedLogs.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-slate-200/60">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1"><Icon name="package" size={14}/> Kullanılan Ameliyat Malzemeleri ({relatedLogs.length})</p>
-                            <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
-                                {relatedLogs.map(rl => (
-                                    <div key={rl.id} className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
-                                        <p className="text-[9px] font-black text-blue-500">{new Date(rl.timestamp).toLocaleDateString('tr-TR')}</p>
-                                        <p className="text-xs font-bold text-slate-700">{rl.description.split(' düşüldü')[0]}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
         const App = () => {
-            const [isLoggedIn, setIsLoggedIn] = useState(true);
-            const [currentAppUser, setCurrentAppUser] = useState({
-                sysUsername: 'Yönetici (Şifresiz)',
-                sysRole: 'admin',
-                sysPerms: ['all']
-            });
+            // DEĞİŞİKLİK: Güvenlik için başlangıçta giriş zorunlu, hafıza kontrolü tamamen kaldırıldı.
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [currentAppUser, setCurrentAppUser] = useState(null);
             
             const [fbUser, setFbUser] = useState(null);
             const [loading, setLoading] = useState(true);
@@ -337,6 +211,10 @@
 
             const [loginData, setLoginData] = useState({ username: '', password: '' });
             const [expandedCategories, setExpandedCategories] = useState({});
+            
+            const [newVisitNote, setNewVisitNote] = useState('');
+            const [visitReminderDate, setVisitReminderDate] = useState('');
+            const [visitReminderNote, setVisitReminderNote] = useState('');
 
             const getLocalDatetime = () => {
                 const tzoffset = (new Date()).getTimezoneOffset() * 60000;
@@ -424,7 +302,7 @@
                             surgDate.setHours(0,0,0,0);
                             if(surgDate.getTime() === tomorrow.getTime()) {
                                 setTimeout(() => {
-                                    showMessage(`📧 OTOMATİK BİLDİRİM: Yarınki "${s.surgeryType}" ameliyatı için ${s.notifyEmail} adresine e-posta uyarısı gönderildi.`, "success");
+                                    showMessage(`📧 BİLDİRİM: Yarınki "${s.surgeryType}" ameliyatı için ${s.notifyEmail} e-posta gönderildi.`, "success");
                                     setNotifiedSurgeries(prev => ({...prev, [s.id]: true}));
                                 }, 3000);
                             }
@@ -441,31 +319,32 @@
 
             const handleLogin = async (e) => {
                 e.preventDefault();
+                // Veritabanındaki kullanıcıları kontrol et
                 let userMatch = appUsers.find(u => u.sysUsername === loginData.username && u.sysPassword === loginData.password);
                 
-                if (!userMatch && appUsers.length === 0 && loginData.username === 'admin' && loginData.password === 'admin') {
-                    const newAdmin = { sysUsername: 'admin', sysPassword: 'admin', sysRole: 'admin', sysPerms: ['all'] };
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'appUsers'), newAdmin);
-                    userMatch = newAdmin;
+                // Sabit yedek hesap tanımı (Kullanıcı veritabanında yoksa veya ağda sorun varsa)
+                if (!userMatch && (loginData.username === 'Seviye' && loginData.password === 'Seviye')) {
+                    userMatch = { sysUsername: 'Seviye', sysRole: 'admin', sysPerms: ['all'] };
                 }
 
                 if (userMatch) {
                     setCurrentAppUser(userMatch);
-                    localStorage.setItem('currentAppUser', JSON.stringify(userMatch));
-                    setIsLoggedIn(true);
+                    setIsLoggedIn(true); // Giriş başarılı
                     
                     const firstAvailable = userMatch.sysRole === 'admin' || userMatch.sysPerms.includes('all') ? 'dashboard' : (userMatch.sysPerms[0] || 'dashboard');
                     setActiveTab(firstAvailable);
+                    showMessage("Giriş başarılı, sisteme hoş geldiniz.");
                 } else {
                     showMessage("Hatalı kullanıcı adı veya şifre!", "error");
                 }
             };
 
+            // DEĞİŞİKLİK: Çıkış yapma fonksiyonu tarayıcı hafızasını tamamen temizler ve giriş sayfasına yönlendirir.
             const handleLogout = () => {
                 setIsLoggedIn(false);
                 setCurrentAppUser(null);
-                localStorage.removeItem('currentAppUser');
                 setLoginData({username: '', password: ''});
+                showMessage("Güvenli çıkış yapıldı.", "info");
             };
 
             const showMessage = (text, type = "success") => {
@@ -583,38 +462,37 @@
                 } catch (e) { showMessage("Hata oluştu!", "error"); }
             };
 
-            // Hekim Günlük Notunu Firebase'e Kaydeden Ana Fonksiyon
-            const handleAddVisitLog = async (doctorId, note, reminderDate, reminderNote) => {
+            const handleAddVisitLog = async (doctorId) => {
+                if (!newVisitNote.trim()) { showMessage("Lütfen bir ziyaret notu yazın!", "error"); return; }
+                
                 try {
                     const now = new Date();
                     const visitData = {
                         doctorId: doctorId,
-                        visitDate: now.toLocaleString('tr-TR'), // SİSTEMDEN ANLIK OTOMATİK TARİH/SAAT
-                        note: note,
-                        hasReminder: reminderDate ? true : false,
-                        reminderDate: reminderDate || '',
-                        reminderNote: reminderNote || '',
+                        visitDate: now.toLocaleString('tr-TR'),
+                        note: newVisitNote,
+                        hasReminder: visitReminderDate ? true : false,
+                        reminderDate: visitReminderDate || '',
+                        reminderNote: visitReminderNote || '',
                         isCompleted: false,
                         timestamp: now.getTime()
                     };
 
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'doctorVisits'), visitData);
                     await addLog('hekim_ziyaret', 'Hekim Ziyareti Notu', `${doctors.find(d => d.id === doctorId)?.name} için yeni ziyaret günlüğü eklendi.`);
-                    showMessage("Ziyaret günlüğü kaydedildi ve alt kısma eklendi.");
-                } catch (e) {
-                    showMessage("Not kaydedilirken hata oluştu!", "error");
-                }
+                    
+                    setNewVisitNote('');
+                    setVisitReminderDate('');
+                    setVisitReminderNote('');
+                    showMessage("Ziyaret günlüğü başarıyla kaydedildi.");
+                } catch (e) { showMessage("Not kaydedilirken bir hata oluştu!", "error"); }
             };
 
             const toggleReminderStatus = async (visitId, currentStatus) => {
                 try {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'doctorVisits', visitId), {
-                        isCompleted: !currentStatus
-                    });
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'doctorVisits', visitId), { isCompleted: !currentStatus });
                     showMessage("Anımsatıcı durumu güncellendi.");
-                } catch (e) {
-                    showMessage("Hata oluştu!", "error");
-                }
+                } catch (e) { showMessage("Hata oluştu!", "error"); }
             };
 
             const deleteRec = async (id, col) => {
@@ -638,10 +516,7 @@
                 try {
                     if (modalType === 'patient' && !editItem) {
                         const nameExists = patients.some(p => normalizeTr(p.name).trim() === normalizeTr(formData.name).trim());
-                        if (nameExists) {
-                            showMessage("Bu isimde bir hasta sistemde zaten kayıtlı.", "error");
-                            return;
-                        }
+                        if (nameExists) { showMessage("Bu isimde bir hasta sistemde zaten kayıtlı.", "error"); return; }
                     }
 
                     if (modalType === 'consumption') {
@@ -710,7 +585,7 @@
                         }, customTimestamp);
                         
                         setLastAction({ type: 'consumption', previousStockStates, logId: logRef ? logRef.id : null });
-                        setShowModal(false); resetForm(); setEditItem(null); setConsumptionSearch(''); setPatientSearch(''); showMessage("Çıkış işlemi tamamlandı.");
+                        setShowModal(false); SpruceForm(); setEditItem(null); setConsumptionSearch(''); setPatientSearch(''); showMessage("Çıkış işlemi tamamlandı.");
                         return; 
                     } 
                     else if (modalType === 'surgery') {
@@ -738,7 +613,7 @@
                         if (editItem) {
                             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'calendarNotes', editItem.id), { note: formData.calendarNote, date: formData.calendarDate });
                         } else {
-                            const newDoc = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'calendarNotes'), { date: formData.calendarDate, note: formData.calendarNote, timestamp: Date.now() });
+                            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'calendarNotes'), { date: formData.calendarDate, note: formData.calendarNote, timestamp: Date.now() });
                         }
                     } else {
                         const colMap = { doctor: 'doctors', patient: 'patients', category: 'stockCategories', product: 'stockItems', warehouse: 'warehouses' };
@@ -757,11 +632,11 @@
                             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), { ...cleanData, timestamp: Date.now() });
                         }
                     }
-                    setShowModal(false); resetForm(); setEditItem(null); showMessage("Kayıt başarılı.");
+                    setShowModal(false); SpruceForm(); setEditItem(null); showMessage("Kayıt başarılı.");
                 } catch (e) { showMessage("Hata oluştu!", "error"); }
             };
 
-            const resetForm = () => {
+            const SpruceForm = () => {
                 setFormData({ 
                     name: '', productCode: '', brand: 'BİLİMPLANT', counts: {}, note: '', tcNo: '', phone: '', address: '', detail: '', categoryId: '', 
                     patientId: '', doctorId: '', prosDoctorId: '', lotNo: '', implantSize: '', usedMaterials: '', 
@@ -820,19 +695,26 @@
 
             if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-blue-500 font-black animate-pulse">BAĞLANILIYOR...</div>;
 
+            // DEĞİŞİKLİK: Kullanıcı giriş paneli arayüzü (Giriş yapılmadan hiçbir panel içeriği render edilmez)
             if (!isLoggedIn) {
                 return (
-                    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
+                    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
                         <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-10 animate-in">
                             <div className="text-center mb-10">
-                                <div className="inline-flex bg-blue-600 p-4 rounded-2xl text-white mb-6"><Icon name="activity" size={40} /></div>
+                                <div className="inline-flex bg-blue-600 p-4 rounded-2xl text-white mb-6"><Icon name="lock" size={40} /></div>
                                 <h1 className="text-3xl font-black text-slate-800 tracking-tighter">Seviye<span className="text-blue-600">Dental</span></h1>
-                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Medikal Yönetim Sistemi</p>
+                                <p className="text-slate-400 text-xs font-black uppercase tracking-widest mt-2">Güvenli Giriş Paneli</p>
                             </div>
                             <form onSubmit={handleLogin} className="space-y-6">
-                                <input type="text" required className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none font-bold text-slate-700 focus:border-blue-500 transition-all" placeholder="Kullanıcı Adı" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} />
-                                <input type="password" required className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none font-bold text-slate-700 focus:border-blue-500 transition-all" placeholder="Şifre" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} />
-                                <button type="submit" className="w-full py-5 bg-blue-600 text-white font-black rounded-3xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all">GİRİŞ YAP</button>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-2">Kullanıcı Adı</label>
+                                    <input type="text" required className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none font-bold text-slate-700 focus:border-blue-500 transition-all" placeholder="Kullanıcı adınızı yazın" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-2">Şifre</label>
+                                    <input type="password" required className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none font-bold text-slate-700 focus:border-blue-500 transition-all" placeholder="Şifrenizi yazın" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} />
+                                </div>
+                                <button type="submit" className="w-full py-5 bg-blue-600 text-white font-black rounded-3xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all uppercase tracking-widest text-xs">Sisteme Giriş Yap</button>
                             </form>
                         </div>
                     </div>
@@ -874,27 +756,33 @@
                                 </div>
                             )}
                         </nav>
+                        
+                        {/* DEĞİŞİKLİK: Giriş yaptıktan sonra sol menünün en altında net görünen güvenli çıkış butonu */}
                         <div className="mt-auto pt-4 flex justify-between items-center bg-slate-800/50 p-3 rounded-2xl border border-slate-700/50">
                             <div className="flex items-center gap-2 overflow-hidden">
-                                <div className="w-8 h-8 bg-blue-50 rounded-lg flex justify-center items-center text-white"><Icon name="user" size={16} /></div>
+                                <div className="w-8 h-8 bg-blue-500/20 text-blue-400 rounded-lg flex justify-center items-center font-bold text-xs">
+                                    {currentAppUser?.sysUsername?.substring(0,2).toUpperCase()}
+                                </div>
                                 <div className="truncate">
                                     <p className="text-xs font-black text-white truncate">{currentAppUser?.sysUsername}</p>
                                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{currentAppUser?.sysRole === 'admin' ? 'Yönetici' : 'Kullanıcı'}</p>
                                 </div>
                             </div>
-                            <button onClick={handleLogout} className="p-2 text-red-400 hover:bg-red-400/10 rounded-xl transition-all"><Icon name="log-out" size={18} /></button>
+                            <button onClick={handleLogout} className="p-2 text-red-400 hover:bg-red-400/20 rounded-xl transition-all flex items-center justify-center gap-1 font-black text-xs" title="Güvenli Çıkış Yap">
+                                <Icon name="log-out" size={18} />
+                            </button>
                         </div>
                     </aside>
 
                     <div className="mobile-bottom-nav md:hidden">
                         <NavItem id="dashboard" icon="layout-dashboard" label="Panel" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('dashboard')} />
-                        <NavItem id="calendar" icon="calendar" label="Takvim" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('calendar')} />
-                        <NavItem id="surgeries" icon="scissors" label="Ameliyat" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('surgeries')} />
                         <NavItem id="doctors" icon="user-round" label="Hekimler" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('doctors')} />
-                        <NavItem id="patients" icon="users" label="Hastalar" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('patients')} />
                         <NavItem id="stock" icon="package" label="Stok" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('stock')} />
-                        <NavItem id="warehouses" icon="map-pin" label="Depo" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('warehouses')} />
                         <NavItem id="history" icon="clipboard-list" label="Geçmiş" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('history')} />
+                        <button onClick={handleLogout} className="flex-1 flex flex-col items-center justify-center p-2 text-red-500 font-bold bg-red-50/50 rounded-xl">
+                            <Icon name="log-out" size={18} />
+                            <span className="text-[9px] font-black uppercase">Çıkış</span>
+                        </button>
                     </div>
 
                     <main className="main-content flex-1 md:ml-72 p-4 md:p-10 bg-slate-50">
@@ -926,7 +814,7 @@
                                                 <button onClick={handleFullBackup} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2 hover:bg-emerald-700 transition-all">
                                                     <Icon name="download" size={16} /> Tüm Yedeği İndir
                                                 </button>
-                                                <button onClick={() => { setModalType('userManagement'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all">
+                                                <button onClick={() => { setModalType('userManagement'); SpruceForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all">
                                                     + Yeni Kullanıcı
                                                 </button>
                                             </div>
@@ -1040,9 +928,9 @@
                                         <div className="flex flex-wrap gap-2 justify-between mb-4">
                                             <button onClick={() => exportToExcel(normalizedStockItems, 'Seviye_Stok_Raporu', 'stock')} className="bg-emerald-600 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-emerald-700"><Icon name="file-spreadsheet" size={16}/> Excel'e Aktar</button>
                                             <div className="flex gap-2 flex-wrap">
-                                                <button onClick={() => { setModalType('consumption'); resetForm(); setShowModal(true); }} className="bg-orange-500 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-orange-600">Detaylı Stok Çıkışı</button>
-                                                <button onClick={() => { setModalType('category'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-300">+ Kategori Ekle</button>
-                                                <button onClick={() => { setModalType('product'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-blue-700">+ Yeni Ürün</button>
+                                                <button onClick={() => { setModalType('consumption'); SpruceForm(); setShowModal(true); }} className="bg-orange-500 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-orange-600">Detaylı Stok Çıkışı</button>
+                                                <button onClick={() => { setModalType('category'); SpruceForm(); setEditItem(null); setShowModal(true); }} className="bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-300">+ Kategori Ekle</button>
+                                                <button onClick={() => { setModalType('product'); SpruceForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-blue-700">+ Yeni Ürün</button>
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -1156,7 +1044,7 @@
                                 {activeTab === 'warehouses' && (
                                     <div className="space-y-6 animate-in">
                                         <div className="flex justify-end mb-4">
-                                            <button onClick={() => { setModalType('warehouse'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl uppercase tracking-widest">+ Yeni Depo Ekle</button>
+                                            <button onClick={() => { setModalType('warehouse'); SpruceForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl uppercase tracking-widest">+ Yeni Depo Ekle</button>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {warehouses.map(w => (
@@ -1179,7 +1067,7 @@
                                 {activeTab === 'surgeries' && (
                                     <div className="space-y-6 animate-in">
                                         <div className="flex justify-end">
-                                            <button onClick={() => { setModalType('surgery'); resetForm(); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl">+ Ameliyat Planla</button>
+                                            <button onClick={() => { setModalType('surgery'); SpruceForm(); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl">+ Ameliyat Planla</button>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {sortedContent(surgeries).map(s => {
@@ -1228,10 +1116,18 @@
                                 {['doctors', 'patients'].includes(activeTab) && (
                                     <div className="space-y-6 animate-in">
                                         <div className="flex justify-end mb-4">
-                                            <button onClick={() => { setModalType(activeTab === 'doctors' ? 'doctor' : 'patient'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl uppercase tracking-widest">+ Yeni {activeTab === 'doctors' ? 'Hekim' : 'Hasta'} Ekle</button>
+                                            <button onClick={() => { setModalType(activeTab === 'doctors' ? 'doctor' : 'patient'); SpruceForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl uppercase tracking-widest">+ Yeni {activeTab === 'doctors' ? 'Hekim' : 'Hasta'} Ekle</button>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            {sortedContent(activeTab === 'doctors' ? doctors : patients).map(item => (
+                                            {sortedContent(activeTab === 'doctors' ? doctors : patients).map(item => {
+                                                const relatedLogs = logs.filter(log => log.type === 'stok_cikis' && (
+                                                    log.patientId === item.id || log.doctorId === item.id || log.prosDoctorId === item.id ||
+                                                    (log.description && log.description.includes(item.name))
+                                                )).sort((a, b) => b.timestamp - a.timestamp);
+
+                                                const specificVisits = doctorVisits.filter(v => v.doctorId === item.id).sort((a,b) => b.timestamp - a.timestamp);
+
+                                                return (
                                                 <div key={item.id} className="bg-white p-8 rounded-[2.5rem] border shadow-sm relative group overflow-hidden transition-all">
                                                     <div className="flex gap-2 absolute top-6 right-6">
                                                         <button onClick={() => { setEditItem(item); setModalType(activeTab === 'doctors' ? 'doctor' : 'patient'); setFormData(item); setShowModal(true); }} className="text-slate-300 hover:text-blue-500"><Icon name="pencil" size={20}/></button>
@@ -1250,20 +1146,85 @@
                                                         <div className="mb-4 space-y-1"><p className="text-xs text-slate-500 font-bold">Uzmanlık: {item.detail}</p></div>
                                                     )}
 
-                                                    {/* ŞABLON MANTIĞI TAM SENİN İSTEDİĞİN GİBİ AYRILDI VE KENDİ BİLEŞENİNE BAĞLANDI */}
                                                     {activeTab === 'doctors' && (
-                                                        <DoctorVisitManager 
-                                                            doctorId={item.id}
-                                                            doctorName={item.name}
-                                                            doctorVisits={doctorVisits}
-                                                            logs={logs}
-                                                            onAddVisit={handleAddVisitLog}
-                                                            onDeleteVisit={deleteRec}
-                                                            onToggleReminder={toggleReminderStatus}
-                                                        />
+                                                        <div className="mt-6 mb-6 bg-slate-50 p-4 rounded-[2rem] border border-slate-100">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1">
+                                                                <Icon name="notebook" size={14}/> Ziyaret Günlüğü & Not Ekle
+                                                            </p>
+                                                            
+                                                            <div className="space-y-3">
+                                                                <textarea 
+                                                                    placeholder="Bu ziyarette ne konuşuldu?" 
+                                                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none text-xs font-medium focus:border-blue-500 transition-all h-20 resize-none shadow-sm"
+                                                                    value={newVisitNote}
+                                                                    onChange={e => setNewVisitNote(e.target.value)}
+                                                                />
+                                                                
+                                                                <div className="p-3 bg-orange-50/50 border border-orange-100 rounded-xl space-y-2">
+                                                                    <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider flex items-center gap-1">
+                                                                        <Icon name="bell" size={12}/> Gelecek Ziyaret İçin Anımsatıcı
+                                                                    </p>
+                                                                    <div className="flex gap-2">
+                                                                        <input 
+                                                                            type="date" 
+                                                                            className="p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none text-slate-600"
+                                                                            value={visitReminderDate}
+                                                                            onChange={e => setVisitReminderDate(e.target.value)}
+                                                                        />
+                                                                        <input 
+                                                                            type="text" 
+                                                                            placeholder="Hatırlatma notu" 
+                                                                            className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none text-slate-600"
+                                                                            value={visitReminderNote}
+                                                                            onChange={e => setVisitReminderNote(e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                <button 
+                                                                    onClick={() => handleAddVisitLog(item.id)}
+                                                                    className="w-full py-2.5 bg-slate-950 text-white font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-slate-800 shadow-md transition-all"
+                                                                >
+                                                                    Ziyareti Günlüğe Kaydet
+                                                                </button>
+                                                            </div>
+
+                                                            {specificVisits.length > 0 && (
+                                                                <div className="mt-4 pt-4 border-t border-slate-200/60 space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Geçmiş Ziyaret Kayıtları ({specificVisits.length})</p>
+                                                                    {specificVisits.map(v => (
+                                                                        <div key={v.id} className="bg-white p-3 rounded-xl border shadow-sm relative group/visit">
+                                                                            <button onClick={() => deleteRec(v.id, 'doctorVisits')} className="absolute right-2 top-2 text-slate-200 hover:text-red-500 opacity-0 group-hover/visit:opacity-100 transition-all"><Icon name="x" size={12}/></button>
+                                                                            <p className="text-[9px] font-black text-blue-600 mb-1">{v.visitDate}</p>
+                                                                            <p className="text-xs font-bold text-slate-700 leading-normal">"{v.note}"</p>
+                                                                            {v.hasReminder && (
+                                                                                <div className={`mt-2 p-1.5 rounded-lg text-[9px] font-black border flex justify-between items-center ${v.isCompleted ? 'bg-slate-100 border-slate-200 text-slate-400' : 'bg-amber-50 border-amber-100 text-amber-700'}`}>
+                                                                                    <span>🔔 {v.reminderDate} -> {v.reminderNote}</span>
+                                                                                    <button onClick={() => toggleReminderStatus(v.id, v.isCompleted)} className="text-[8px] bg-white px-1.5 py-0.5 rounded border border-amber-200 shadow-sm hover:bg-amber-100">{v.isCompleted ? 'Aç' : 'Kapat'}</button>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {relatedLogs.length > 0 && (
+                                                        <div className="mb-4 bg-slate-50 rounded-3xl border border-slate-100 p-4">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1"><Icon name="package" size={14}/> Kullanılan Malzemeler ({relatedLogs.length})</p>
+                                                            <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
+                                                                {relatedLogs.map(rl => (
+                                                                    <div key={rl.id} className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+                                                                        <p className="text-[9px] font-black text-blue-500">{new Date(rl.timestamp).toLocaleDateString('tr-TR')}</p>
+                                                                        <p className="text-xs font-bold text-slate-700">{rl.description.split(' düşüldü')[0]}</p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </div>
-                                            ))}
+                                            )})}
                                         </div>
                                     </div>
                                 )}
@@ -1303,7 +1264,7 @@
                             <div className="bg-white rounded-t-[3rem] md:rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in">
                                 <div className="p-10 border-b flex justify-between items-center bg-slate-50/50">
                                     <h3 className="text-2xl font-black text-slate-900 tracking-tight capitalize">Kayıt Formu</h3>
-                                    <button onClick={() => { setShowModal(false); setEditItem(null); resetForm(); }} className="bg-white p-3 rounded-2xl hover:text-red-500"><Icon name="x" size={24} /></button>
+                                    <button onClick={() => { setShowModal(false); setEditItem(null); SpruceForm(); }} className="bg-white p-3 rounded-2xl hover:text-red-500"><Icon name="x" size={24} /></button>
                                 </div>
                                 <div className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar bg-slate-50/20">
                                     
@@ -1517,7 +1478,7 @@
 
                                 </div>
                                 <div className="p-10 bg-slate-50/50 flex gap-4">
-                                    <button onClick={() => { setShowModal(false); setEditItem(null); resetForm(); }} className="flex-1 py-5 bg-white text-slate-400 font-black rounded-3xl border text-[10px] uppercase tracking-widest">İptal</button>
+                                    <button onClick={() => { setShowModal(false); setEditItem(null); SpruceForm(); }} className="flex-1 py-5 bg-white text-slate-400 font-black rounded-3xl border text-[10px] uppercase tracking-widest">İptal</button>
                                     <button onClick={handleSave} className="flex-1 py-5 bg-blue-600 text-white font-black rounded-3xl shadow-lg text-[10px] uppercase tracking-widest">KAYDET</button>
                                 </div>
                             </div>
