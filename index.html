@@ -31,7 +31,7 @@
     </script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=400;500;600;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
         
         :root { --bg-main: #F8FAFC; }
 
@@ -53,11 +53,12 @@
         @media (max-width: 768px) {
             .mobile-bottom-nav { 
                 position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #E2E8F0; z-index: 100; 
-                display: flex; justify-content: flex-start; overflow-x: auto; padding: 0.5rem; gap: 0.5rem; 
+                display: flex; justify-content: flex-start; overflow-x: auto; padding: 0.75rem 0.5rem; gap: 0.5rem; 
                 box-shadow: 0 -10px 20px -5px rgb(0 0 0 / 0.1);
+                scrollbar-width: none; /* Firefox için scroll gizleme */
             }
-            .mobile-bottom-nav::-webkit-scrollbar { display: none; }
-            .mobile-bottom-nav > button { min-width: 75px; flex-shrink: 0; }
+            .mobile-bottom-nav::-webkit-scrollbar { display: none; } /* Chrome/Safari için scroll gizleme */
+            .mobile-bottom-nav > button { min-width: 78px; max-width: 85px; flex-shrink: 0; }
             .sidebar { display: none !important; }
             .main-content { padding-bottom: calc(100px + env(safe-area-inset-bottom)); margin-left: 0 !important; width: 100% !important; min-height: 100vh; background-color: var(--bg-main); }
         }
@@ -90,14 +91,14 @@
         const appId = 'clinic-erp-v2';
 
         const PERMISSIONS = [
-            { id: 'dashboard', label: 'Genel Panel' },
-            { id: 'calendar', label: 'Takvim & Ajanda' },
-            { id: 'surgeries', label: 'Ameliyat Takvimi' },
+            { id: 'dashboard', label: 'Panel' },
+            { id: 'calendar', label: 'Ajanda' },
+            { id: 'surgeries', label: 'Ameliyat' },
             { id: 'doctors', label: 'Hekimler' },
             { id: 'patients', label: 'Hastalar' },
-            { id: 'stock', label: 'Stok Yönetimi' },
-            { id: 'warehouses', label: 'Depo Yönetimi' },
-            { id: 'history', label: 'İşlem Geçmişi' }
+            { id: 'stock', label: 'Stok' },
+            { id: 'warehouses', label: 'Depolar' },
+            { id: 'history', label: 'Geçmiş' }
         ];
 
         const Icon = ({ name, size = 20, className = "", title="" }) => {
@@ -121,11 +122,11 @@
             <button 
                 onClick={() => hasPermission && setActive(id)} 
                 disabled={!hasPermission}
-                className={`flex-1 md:w-full flex flex-col md:flex-row items-center gap-1 md:gap-4 px-2 md:px-5 py-2 md:py-4 rounded-xl md:rounded-2xl font-bold transition-all relative
+                className={`flex-1 md:w-full flex flex-col md:flex-row items-center gap-1 md:gap-4 px-1 md:px-5 py-2 md:py-4 rounded-xl md:rounded-2xl font-bold transition-all relative
                 ${!hasPermission ? 'opacity-40 cursor-not-allowed bg-transparent' : 
                   active === id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 md:hover:text-slate-200'}`}
             >
-                <Icon name={icon} size={22} className={active === id ? "text-white" : "text-slate-400"} />
+                <Icon name={icon} size={20} className={active === id ? "text-white" : "text-slate-400"} />
                 <span className="text-[10px] md:text-sm truncate font-black md:font-bold">{label}</span>
                 {!hasPermission && <div className="absolute right-4 hidden md:block"><Icon name="lock" size={14} className="text-slate-500" /></div>}
             </button>
@@ -172,9 +173,12 @@
         };
 
         const App = () => {
-            // DEĞİŞİKLİK: Güvenlik için başlangıçta giriş zorunlu, hafıza kontrolü tamamen kaldırıldı.
-            const [isLoggedIn, setIsLoggedIn] = useState(false);
-            const [currentAppUser, setCurrentAppUser] = useState(null);
+            const [isLoggedIn, setIsLoggedIn] = useState(true);
+            const [currentAppUser, setCurrentAppUser] = useState({
+                sysUsername: 'Yönetici (Şifresiz)',
+                sysRole: 'admin',
+                sysPerms: ['all']
+            });
             
             const [fbUser, setFbUser] = useState(null);
             const [loading, setLoading] = useState(true);
@@ -302,7 +306,7 @@
                             surgDate.setHours(0,0,0,0);
                             if(surgDate.getTime() === tomorrow.getTime()) {
                                 setTimeout(() => {
-                                    showMessage(`📧 BİLDİRİM: Yarınki "${s.surgeryType}" ameliyatı için ${s.notifyEmail} e-posta gönderildi.`, "success");
+                                    showMessage(`📧 OTOMATİK BİLDİRİM: Yarınki "${s.surgeryType}" ameliyatı için ${s.notifyEmail} adresine e-posta uyarısı gönderildi.`, "success");
                                     setNotifiedSurgeries(prev => ({...prev, [s.id]: true}));
                                 }, 3000);
                             }
@@ -319,32 +323,31 @@
 
             const handleLogin = async (e) => {
                 e.preventDefault();
-                // Veritabanındaki kullanıcıları kontrol et
                 let userMatch = appUsers.find(u => u.sysUsername === loginData.username && u.sysPassword === loginData.password);
                 
-                // Sabit yedek hesap tanımı (Kullanıcı veritabanında yoksa veya ağda sorun varsa)
-                if (!userMatch && (loginData.username === 'Seviye' && loginData.password === 'Seviye')) {
-                    userMatch = { sysUsername: 'Seviye', sysRole: 'admin', sysPerms: ['all'] };
+                if (!userMatch && appUsers.length === 0 && loginData.username === 'admin' && loginData.password === 'admin') {
+                    const newAdmin = { sysUsername: 'admin', sysPassword: 'admin', sysRole: 'admin', sysPerms: ['all'] };
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'appUsers'), newAdmin);
+                    userMatch = newAdmin;
                 }
 
                 if (userMatch) {
                     setCurrentAppUser(userMatch);
-                    setIsLoggedIn(true); // Giriş başarılı
+                    localStorage.setItem('currentAppUser', JSON.stringify(userMatch));
+                    setIsLoggedIn(true);
                     
                     const firstAvailable = userMatch.sysRole === 'admin' || userMatch.sysPerms.includes('all') ? 'dashboard' : (userMatch.sysPerms[0] || 'dashboard');
                     setActiveTab(firstAvailable);
-                    showMessage("Giriş başarılı, sisteme hoş geldiniz.");
                 } else {
                     showMessage("Hatalı kullanıcı adı veya şifre!", "error");
                 }
             };
 
-            // DEĞİŞİKLİK: Çıkış yapma fonksiyonu tarayıcı hafızasını tamamen temizler ve giriş sayfasına yönlendirir.
             const handleLogout = () => {
                 setIsLoggedIn(false);
                 setCurrentAppUser(null);
+                localStorage.removeItem('currentAppUser');
                 setLoginData({username: '', password: ''});
-                showMessage("Güvenli çıkış yapıldı.", "info");
             };
 
             const showMessage = (text, type = "success") => {
@@ -416,6 +419,31 @@
                 } catch (error) { showMessage("Geri alma işlemi başarısız!", "error"); }
             };
 
+            const updateLogInfo = async (log) => {
+                try {
+                    let newDescription = log.description;
+                    const baseMsgMatch = log.description.match(/(.*?)(?: Diş No:| LOT No:| \(Hasta:)/);
+                    let baseMsg = baseMsgMatch ? baseMsgMatch[1].trim() : log.description.split(' [İşlem')[0].trim();
+                    const hastaMatch = log.description.match(/\(Hasta: (.*?)\)/);
+                    const hastaText = hastaMatch ? ` (Hasta: ${hastaMatch[1]})` : '';
+                    let updatedTeeth = editLogData.toothNo ? ` Diş No: ${editLogData.toothNo}` : '';
+                    let updatedLot = editLogData.lotNo ? ` LOT No: ${editLogData.lotNo}` : '';
+                    const newTimestamp = editLogData.timestamp ? new Date(editLogData.timestamp).getTime() : log.timestamp;
+                    const timeText = ` [İşlem Tarihi ve Saati: ${new Date(newTimestamp).toLocaleString('tr-TR')}]`;
+
+                    newDescription = `${baseMsg}${updatedTeeth}${updatedLot}${hastaText}${timeText}`;
+
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'logs', log.id), {
+                        lotNo: editLogData.lotNo,
+                        toothNo: editLogData.toothNo,
+                        timestamp: newTimestamp,
+                        description: newDescription
+                    });
+                    setEditingLogId(null);
+                    showMessage("İşlem bilgileri başarıyla güncellendi.");
+                } catch (error) { showMessage("Güncelleme başarısız oldu!", "error"); }
+            };
+
             const handleDirectStockChange = async (item, warehouseName, newCount) => {
                 const currentCounts = { ...(item.counts || {}) };
                 const oldCounts = { ...currentCounts };
@@ -485,14 +513,20 @@
                     setVisitReminderDate('');
                     setVisitReminderNote('');
                     showMessage("Ziyaret günlüğü başarıyla kaydedildi.");
-                } catch (e) { showMessage("Not kaydedilirken bir hata oluştu!", "error"); }
+                } catch (e) {
+                    showMessage("Not kaydedilirken bir hata oluştu!", "error");
+                }
             };
 
             const toggleReminderStatus = async (visitId, currentStatus) => {
                 try {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'doctorVisits', visitId), { isCompleted: !currentStatus });
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'doctorVisits', visitId), {
+                        isCompleted: !currentStatus
+                    });
                     showMessage("Anımsatıcı durumu güncellendi.");
-                } catch (e) { showMessage("Hata oluştu!", "error"); }
+                } catch (e) {
+                    showMessage("Hata oluştu!", "error");
+                }
             };
 
             const deleteRec = async (id, col) => {
@@ -516,7 +550,10 @@
                 try {
                     if (modalType === 'patient' && !editItem) {
                         const nameExists = patients.some(p => normalizeTr(p.name).trim() === normalizeTr(formData.name).trim());
-                        if (nameExists) { showMessage("Bu isimde bir hasta sistemde zaten kayıtlı.", "error"); return; }
+                        if (nameExists) {
+                            showMessage("Bu isimde bir hasta sistemde zaten kayıtlı.", "error");
+                            return;
+                        }
                     }
 
                     if (modalType === 'consumption') {
@@ -585,7 +622,7 @@
                         }, customTimestamp);
                         
                         setLastAction({ type: 'consumption', previousStockStates, logId: logRef ? logRef.id : null });
-                        setShowModal(false); SpruceForm(); setEditItem(null); setConsumptionSearch(''); setPatientSearch(''); showMessage("Çıkış işlemi tamamlandı.");
+                        setShowModal(false); resetForm(); setEditItem(null); setConsumptionSearch(''); setPatientSearch(''); showMessage("Çıkış işlemi tamamlandı.");
                         return; 
                     } 
                     else if (modalType === 'surgery') {
@@ -613,7 +650,7 @@
                         if (editItem) {
                             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'calendarNotes', editItem.id), { note: formData.calendarNote, date: formData.calendarDate });
                         } else {
-                            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'calendarNotes'), { date: formData.calendarDate, note: formData.calendarNote, timestamp: Date.now() });
+                            const newDoc = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'calendarNotes'), { date: formData.calendarDate, note: formData.calendarNote, timestamp: Date.now() });
                         }
                     } else {
                         const colMap = { doctor: 'doctors', patient: 'patients', category: 'stockCategories', product: 'stockItems', warehouse: 'warehouses' };
@@ -632,11 +669,11 @@
                             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), { ...cleanData, timestamp: Date.now() });
                         }
                     }
-                    setShowModal(false); SpruceForm(); setEditItem(null); showMessage("Kayıt başarılı.");
+                    setShowModal(false); resetForm(); setEditItem(null); showMessage("Kayıt başarılı.");
                 } catch (e) { showMessage("Hata oluştu!", "error"); }
             };
 
-            const SpruceForm = () => {
+            const resetForm = () => {
                 setFormData({ 
                     name: '', productCode: '', brand: 'BİLİMPLANT', counts: {}, note: '', tcNo: '', phone: '', address: '', detail: '', categoryId: '', 
                     patientId: '', doctorId: '', prosDoctorId: '', lotNo: '', implantSize: '', usedMaterials: '', 
@@ -695,26 +732,19 @@
 
             if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-blue-500 font-black animate-pulse">BAĞLANILIYOR...</div>;
 
-            // DEĞİŞİKLİK: Kullanıcı giriş paneli arayüzü (Giriş yapılmadan hiçbir panel içeriği render edilmez)
             if (!isLoggedIn) {
                 return (
-                    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
+                    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
                         <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-10 animate-in">
                             <div className="text-center mb-10">
-                                <div className="inline-flex bg-blue-600 p-4 rounded-2xl text-white mb-6"><Icon name="lock" size={40} /></div>
+                                <div className="inline-flex bg-blue-600 p-4 rounded-2xl text-white mb-6"><Icon name="activity" size={40} /></div>
                                 <h1 className="text-3xl font-black text-slate-800 tracking-tighter">Seviye<span className="text-blue-600">Dental</span></h1>
-                                <p className="text-slate-400 text-xs font-black uppercase tracking-widest mt-2">Güvenli Giriş Paneli</p>
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Medikal Yönetim Sistemi</p>
                             </div>
                             <form onSubmit={handleLogin} className="space-y-6">
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-2">Kullanıcı Adı</label>
-                                    <input type="text" required className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none font-bold text-slate-700 focus:border-blue-500 transition-all" placeholder="Kullanıcı adınızı yazın" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-2">Şifre</label>
-                                    <input type="password" required className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none font-bold text-slate-700 focus:border-blue-500 transition-all" placeholder="Şifrenizi yazın" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} />
-                                </div>
-                                <button type="submit" className="w-full py-5 bg-blue-600 text-white font-black rounded-3xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all uppercase tracking-widest text-xs">Sisteme Giriş Yap</button>
+                                <input type="text" required className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none font-bold text-slate-700 focus:border-blue-500 transition-all" placeholder="Kullanıcı Adı" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} />
+                                <input type="password" required className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none font-bold text-slate-700 focus:border-blue-500 transition-all" placeholder="Şifre" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} />
+                                <button type="submit" className="w-full py-5 bg-blue-600 text-white font-black rounded-3xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all">GİRİŞ YAP</button>
                             </form>
                         </div>
                     </div>
@@ -756,33 +786,27 @@
                                 </div>
                             )}
                         </nav>
-                        
-                        {/* DEĞİŞİKLİK: Giriş yaptıktan sonra sol menünün en altında net görünen güvenli çıkış butonu */}
                         <div className="mt-auto pt-4 flex justify-between items-center bg-slate-800/50 p-3 rounded-2xl border border-slate-700/50">
                             <div className="flex items-center gap-2 overflow-hidden">
-                                <div className="w-8 h-8 bg-blue-500/20 text-blue-400 rounded-lg flex justify-center items-center font-bold text-xs">
-                                    {currentAppUser?.sysUsername?.substring(0,2).toUpperCase()}
-                                </div>
+                                <div className="w-8 h-8 bg-blue-50 rounded-lg flex justify-center items-center text-white"><Icon name="user" size={16} /></div>
                                 <div className="truncate">
                                     <p className="text-xs font-black text-white truncate">{currentAppUser?.sysUsername}</p>
                                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{currentAppUser?.sysRole === 'admin' ? 'Yönetici' : 'Kullanıcı'}</p>
                                 </div>
                             </div>
-                            <button onClick={handleLogout} className="p-2 text-red-400 hover:bg-red-400/20 rounded-xl transition-all flex items-center justify-center gap-1 font-black text-xs" title="Güvenli Çıkış Yap">
-                                <Icon name="log-out" size={18} />
-                            </button>
+                            <button onClick={handleLogout} className="p-2 text-red-400 hover:bg-red-400/10 rounded-xl transition-all"><Icon name="log-out" size={18} /></button>
                         </div>
                     </aside>
 
                     <div className="mobile-bottom-nav md:hidden">
                         <NavItem id="dashboard" icon="layout-dashboard" label="Panel" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('dashboard')} />
+                        <NavItem id="calendar" icon="calendar" label="Ajanda" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('calendar')} />
+                        <NavItem id="surgeries" icon="scissors" label="Ameliyat" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('surgeries')} />
                         <NavItem id="doctors" icon="user-round" label="Hekimler" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('doctors')} />
+                        <NavItem id="patients" icon="users" label="Hastalar" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('patients')} />
                         <NavItem id="stock" icon="package" label="Stok" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('stock')} />
+                        <NavItem id="warehouses" icon="map-pin" label="Depolar" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('warehouses')} />
                         <NavItem id="history" icon="clipboard-list" label="Geçmiş" active={activeTab} setActive={setActiveTab} hasPermission={checkPermission('history')} />
-                        <button onClick={handleLogout} className="flex-1 flex flex-col items-center justify-center p-2 text-red-500 font-bold bg-red-50/50 rounded-xl">
-                            <Icon name="log-out" size={18} />
-                            <span className="text-[9px] font-black uppercase">Çıkış</span>
-                        </button>
                     </div>
 
                     <main className="main-content flex-1 md:ml-72 p-4 md:p-10 bg-slate-50">
@@ -814,7 +838,7 @@
                                                 <button onClick={handleFullBackup} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2 hover:bg-emerald-700 transition-all">
                                                     <Icon name="download" size={16} /> Tüm Yedeği İndir
                                                 </button>
-                                                <button onClick={() => { setModalType('userManagement'); SpruceForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all">
+                                                <button onClick={() => { setModalType('userManagement'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all">
                                                     + Yeni Kullanıcı
                                                 </button>
                                             </div>
@@ -870,9 +894,9 @@
                                                             </div>
                                                             <button 
                                                                 onClick={() => toggleReminderStatus(rem.id, rem.isCompleted)}
-                                                                className="bg-white text-orange-600 px-3 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-orange-50 transition-all shrink-0"
+                                                                className="bg-white text-orange-600 px-3 py-1.5 rounded-xl text-xs font-black shadow-sm hover:bg-orange-50 transition-all shrink-0"
                                                             >
-                                                                Tamamlandı
+                                                                Tamamlandı Yap
                                                             </button>
                                                         </div>
                                                     ))}
@@ -912,7 +936,7 @@
                                             <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
                                                 <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 rounded-full -mr-32 -mt-32 blur-3xl"></div>
                                                 <h4 className="font-black text-xl mb-2 relative">Sistem Bilgisi</h4>
-                                                <p className="text-slate-400 text-sm mb-8 relative">Seviye Dental Medikal Yönetimi v3.0</p>
+                                                <p className="text-slate-400 text-sm mb-8 relative">Seviye Dental Medikal Panel v3.0</p>
                                                 
                                                 <button onClick={handleFullBackup} className="w-full mt-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all relative z-10">
                                                     <Icon name="download" size={20} />
@@ -928,9 +952,9 @@
                                         <div className="flex flex-wrap gap-2 justify-between mb-4">
                                             <button onClick={() => exportToExcel(normalizedStockItems, 'Seviye_Stok_Raporu', 'stock')} className="bg-emerald-600 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-emerald-700"><Icon name="file-spreadsheet" size={16}/> Excel'e Aktar</button>
                                             <div className="flex gap-2 flex-wrap">
-                                                <button onClick={() => { setModalType('consumption'); SpruceForm(); setShowModal(true); }} className="bg-orange-500 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-orange-600">Detaylı Stok Çıkışı</button>
-                                                <button onClick={() => { setModalType('category'); SpruceForm(); setEditItem(null); setShowModal(true); }} className="bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-300">+ Kategori Ekle</button>
-                                                <button onClick={() => { setModalType('product'); SpruceForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-blue-700">+ Yeni Ürün</button>
+                                                <button onClick={() => { setModalType('consumption'); resetForm(); setShowModal(true); }} className="bg-orange-500 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-orange-600">Detaylı Stok Çıkışı</button>
+                                                <button onClick={() => { setModalType('category'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-300">+ Kategori Ekle</button>
+                                                <button onClick={() => { setModalType('product'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-blue-700">+ Yeni Ürün</button>
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -1044,7 +1068,7 @@
                                 {activeTab === 'warehouses' && (
                                     <div className="space-y-6 animate-in">
                                         <div className="flex justify-end mb-4">
-                                            <button onClick={() => { setModalType('warehouse'); SpruceForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl uppercase tracking-widest">+ Yeni Depo Ekle</button>
+                                            <button onClick={() => { setModalType('warehouse'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl uppercase tracking-widest">+ Yeni Depo Ekle</button>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {warehouses.map(w => (
@@ -1067,7 +1091,7 @@
                                 {activeTab === 'surgeries' && (
                                     <div className="space-y-6 animate-in">
                                         <div className="flex justify-end">
-                                            <button onClick={() => { setModalType('surgery'); SpruceForm(); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl">+ Ameliyat Planla</button>
+                                            <button onClick={() => { setModalType('surgery'); resetForm(); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl">+ Ameliyat Planla</button>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {sortedContent(surgeries).map(s => {
@@ -1116,7 +1140,7 @@
                                 {['doctors', 'patients'].includes(activeTab) && (
                                     <div className="space-y-6 animate-in">
                                         <div className="flex justify-end mb-4">
-                                            <button onClick={() => { setModalType(activeTab === 'doctors' ? 'doctor' : 'patient'); SpruceForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl uppercase tracking-widest">+ Yeni {activeTab === 'doctors' ? 'Hekim' : 'Hasta'} Ekle</button>
+                                            <button onClick={() => { setModalType(activeTab === 'doctors' ? 'doctor' : 'patient'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl uppercase tracking-widest">+ Yeni {activeTab === 'doctors' ? 'Hekim' : 'Hasta'}</button>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {sortedContent(activeTab === 'doctors' ? doctors : patients).map(item => {
@@ -1154,7 +1178,7 @@
                                                             
                                                             <div className="space-y-3">
                                                                 <textarea 
-                                                                    placeholder="Bu ziyarette ne konuşuldu?" 
+                                                                    placeholder="Bu ziyarette ne konuşuldu?..." 
                                                                     className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none text-xs font-medium focus:border-blue-500 transition-all h-20 resize-none shadow-sm"
                                                                     value={newVisitNote}
                                                                     onChange={e => setNewVisitNote(e.target.value)}
@@ -1194,13 +1218,23 @@
                                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Geçmiş Ziyaret Kayıtları ({specificVisits.length})</p>
                                                                     {specificVisits.map(v => (
                                                                         <div key={v.id} className="bg-white p-3 rounded-xl border shadow-sm relative group/visit">
-                                                                            <button onClick={() => deleteRec(v.id, 'doctorVisits')} className="absolute right-2 top-2 text-slate-200 hover:text-red-500 opacity-0 group-hover/visit:opacity-100 transition-all"><Icon name="x" size={12}/></button>
+                                                                            <button 
+                                                                                onClick={() => deleteRec(v.id, 'doctorVisits')}
+                                                                                className="absolute right-2 top-2 text-slate-200 hover:text-red-500 opacity-0 group-hover/visit:opacity-100 transition-all"
+                                                                            >
+                                                                                <Icon name="x" size={12}/>
+                                                                            </button>
                                                                             <p className="text-[9px] font-black text-blue-600 mb-1">{v.visitDate}</p>
                                                                             <p className="text-xs font-bold text-slate-700 leading-normal">"{v.note}"</p>
                                                                             {v.hasReminder && (
                                                                                 <div className={`mt-2 p-1.5 rounded-lg text-[9px] font-black border flex justify-between items-center ${v.isCompleted ? 'bg-slate-100 border-slate-200 text-slate-400' : 'bg-amber-50 border-amber-100 text-amber-700'}`}>
                                                                                     <span>🔔 {v.reminderDate} -> {v.reminderNote}</span>
-                                                                                    <button onClick={() => toggleReminderStatus(v.id, v.isCompleted)} className="text-[8px] bg-white px-1.5 py-0.5 rounded border border-amber-200 shadow-sm hover:bg-amber-100">{v.isCompleted ? 'Aç' : 'Kapat'}</button>
+                                                                                    <button 
+                                                                                        onClick={() => toggleReminderStatus(v.id, v.isCompleted)}
+                                                                                        className="text-[8px] bg-white px-1.5 py-0.5 rounded border border-amber-200 shadow-sm hover:bg-amber-100"
+                                                                                    >
+                                                                                        {v.isCompleted ? 'Aç' : 'Kapat'}
+                                                                                    </button>
                                                                                 </div>
                                                                             )}
                                                                         </div>
@@ -1264,7 +1298,7 @@
                             <div className="bg-white rounded-t-[3rem] md:rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in">
                                 <div className="p-10 border-b flex justify-between items-center bg-slate-50/50">
                                     <h3 className="text-2xl font-black text-slate-900 tracking-tight capitalize">Kayıt Formu</h3>
-                                    <button onClick={() => { setShowModal(false); setEditItem(null); SpruceForm(); }} className="bg-white p-3 rounded-2xl hover:text-red-500"><Icon name="x" size={24} /></button>
+                                    <button onClick={() => { setShowModal(false); setEditItem(null); resetForm(); }} className="bg-white p-3 rounded-2xl hover:text-red-500"><Icon name="x" size={24} /></button>
                                 </div>
                                 <div className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar bg-slate-50/20">
                                     
@@ -1478,8 +1512,8 @@
 
                                 </div>
                                 <div className="p-10 bg-slate-50/50 flex gap-4">
-                                    <button onClick={() => { setShowModal(false); setEditItem(null); SpruceForm(); }} className="flex-1 py-5 bg-white text-slate-400 font-black rounded-3xl border text-[10px] uppercase tracking-widest">İptal</button>
-                                    <button onClick={handleSave} className="flex-1 py-5 bg-blue-600 text-white font-black rounded-3xl shadow-lg text-[10px] uppercase tracking-widest">KAYDET</button>
+                                    <button onClick={() => { setShowModal(false); setEditItem(null); resetForm(); }} className="flex-1 py-5 bg-white text-slate-400 font-black rounded-3xl border text-[10px] uppercase tracking-widest">İptal</button>
+                                    <button onClick={handleSave} className="flex-1 py-5 bg-blue-600 text-white font-black rounded-3xl shadow-lg text-[10px] uppercase tracking-widest">KAYBET</button>
                                 </div>
                             </div>
                         </div>
