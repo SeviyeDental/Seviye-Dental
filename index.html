@@ -9,6 +9,8 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Excel İşlemleri İçin Gerekli SheetJS Kütüphanesi -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, doc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -55,9 +57,7 @@
                 }
             }, [name, size, className]);
             return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
-        };
-
-        const App = () => {
+        };const App = () => {
             const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('crm_user_session'));
             const [currentUser, setCurrentUser] = useState(() => localStorage.getItem('crm_user_session') || '');
             const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -77,24 +77,23 @@
 
             const [doctorForm, setDoctorForm] = useState({ name: '', phone: '', clinic: '', regionId: '', note: '' });
             const [regionForm, setRegionForm] = useState({ name: '' });
-            const [userForm, setUserForm] = useState({ username: '', password: '', name: '' }); // Kullanıcı formu
+            const [userForm, setUserForm] = useState({ username: '', password: '', name: '' });
             const [newNoteText, setNewNoteText] = useState('');
             
             const [editingNoteId, setEditingNoteId] = useState(null);
             const [reminderDate, setReminderDate] = useState(''); 
             const [reminderEmail, setReminderEmail] = useState('');
-            const [uiMessage, setUiMessage] = useState(null);
 
-            const showMessage = (text, type = "success") => { setUiMessage({ text, type }); setTimeout(() => setUiMessage(null), 3000); };
+            const fileInputRef = useRef(null);
 
             const getTenDaysLaterISO = () => {
                 const now = new Date();
                 const tenDaysLater = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
                 const tzoffset = tenDaysLater.getTimezoneOffset() * 60000;
-                return new Date(tenDaysLater.getTime() - tzoffset).toISOString().slice(0, 16);
+                return new Date(tenDaysLater.get() - tzoffset).toISOString().slice(0, 16);
             };
 
-            // ⏰ 2 Dakikalık Hareketsizlik Takibi
+            // ⏰ 2 Dakikalık Hareketsizlik Zamanlayıcısı (Auto-Logout)
             useEffect(() => {
                 if (!isLoggedIn) return;
                 let timeoutId;
@@ -122,7 +121,7 @@
                 };
             }, [isLoggedIn]);
 
-            // Firebase Canlı Senkronizasyon
+            // Firebase Canlı Bağlantı
             useEffect(() => {
                 const checkInterval = setInterval(() => {
                     if (window.db && window.FirebaseMethods) {
@@ -162,6 +161,51 @@
                 }
             }, [selectedDoctor, editingNoteId]);
 
+            // 📥 EXCEL'DEN TOPLU HEKİM YÜKLEME (3. Fikir)
+            const handleExcelImport = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (evt) => {
+                    const bstr = evt.target.result;
+                    const wb = XLSX.read(bstr, { type: 'binary' });
+                    const wsname = wb.SheetNames[0];
+                    const ws = wb.Sheets[wsname];
+                    const data = XLSX.utils.sheet_to_json(ws);
+                    
+                    const { collection, addDoc } = window.FirebaseMethods;
+                    let defaultRegionId = regions[0]?.id || 'reg-1';
+
+                    for (const row of data) {
+                        if (row["Hekim Adı Soyadı"]) {
+                            await addDoc(collection(window.db, 'shared_doctors'), {
+                                name: row["Hekim Adı Soyadı"],
+                                clinic: row["Klinik"] || '',
+                                phone: row["Telefon"] || '',
+                                regionId: defaultRegionId,
+                                timestamp: Date.now()
+                            });
+                        }
+                    }
+                    alert(`✅ ${data.length} adet hekim başarıyla bulut havuzuna yüklendi!`);
+                };
+                reader.readAsBinaryString(file);
+            };
+
+            // 📤 EXCEL OLARAK TÜM DATAYI YEDEKLME (3. Fikir)
+            const handleExcelExport = () => {
+                const exportData = doctors.map(d => ({
+                    "Hekim Adı Soyadı": d.name,
+                    "Klinik": d.clinic || '',
+                    "Telefon": d.phone || '',
+                    "Bölge": regions.find(r => r.id === d.regionId)?.name || 'Bilinmeyen'
+                }));
+                const ws = XLSX.utils.json_to_sheet(exportData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Hekim Portföyü");
+                XLSX.writeFile(wb, `Seviye_Dental_CRM_Yedek_${new Date().toISOString().split('T')[0]}.xlsx`);
+            };
+
             const handleLoginSubmit = (e) => {
                 e.preventDefault();
                 const matchedUser = systemUsers.find(u => u.username === loginForm.username && u.password === loginForm.password);
@@ -170,9 +214,7 @@
                     setCurrentUser(matchedUser.name);
                     localStorage.setItem('crm_user_session', matchedUser.name);
                     setLoginForm({ username: '', password: '' });
-                } else {
-                    alert("❌ Hatalı Kullanıcı Adı veya Şifre!");
-                }
+                } else { alert("❌ Hatalı Kullanıcı Adı veya Şifre!"); }
             };
 
             const handleLogoutAction = () => {
@@ -190,10 +232,7 @@
                 const updated = [...regions];
                 const [removed] = updated.splice(draggedIdx, 1);
                 updated.splice(targetIdx, 0, removed);
-                
-                updated.forEach((r, idx) => {
-                    updateDoc(doc(window.db, 'shared_regions', r.id), { order: idx });
-                });
+                updated.forEach((r, idx) => { updateDoc(doc(window.db, 'shared_regions', r.id), { order: idx }); });
             };
 
             const handleAddDoctor = async (e) => {
@@ -207,7 +246,7 @@
 
                 if (doctorForm.note) {
                     await addDoc(collection(window.db, 'shared_visits'), {
-                        doctorId: docRef.id, text: doctorForm.note + ` [Ekleyen: ${currentUser}]`, rawText: doctorForm.note, date: new Date().toLocaleString('tr-TR'), timestamp: Date.now(), user: currentUser
+                        doctorId: docRef.id, text: doctorForm.note, rawText: doctorForm.note, date: new Date().toLocaleString('tr-TR'), timestamp: Date.now(), user: currentUser
                     });
                 }
                 setShowModal(false);
@@ -223,7 +262,6 @@
                 setRegionForm({ name: '' });
             };
 
-            // YENİ: Buluta Kullanıcı Ekleme Fonksiyonu
             const handleAddUser = async (e) => {
                 e.preventDefault();
                 if (!userForm.username || !userForm.password || !userForm.name) return;
@@ -231,14 +269,12 @@
                 await addDoc(collection(window.db, 'shared_users'), { username: userForm.username, password: userForm.password, name: userForm.name });
                 setShowModal(false);
                 setUserForm({ username: '', password: '', name: '' });
-                showMessage("Yeni kullanıcı başarıyla eklendi.");
             };
 
             const handleDeleteUser = async (id) => {
                 if (!confirm("Bu kullanıcının sistem erişimini kaldırmak istediğinize emin misiniz?")) return;
                 const { doc, deleteDoc } = window.FirebaseMethods;
                 await deleteDoc(doc(window.db, 'shared_users', id));
-                showMessage("Kullanıcı silindi.", "info");
             };
 
             const handleSaveNote = async (docId) => {
@@ -256,11 +292,11 @@
 
                 if (editingNoteId) {
                     await updateDoc(doc(window.db, 'shared_visits', editingNoteId), {
-                        text: newNoteText + reminderInfo + ` [Düzenleyen: ${currentUser}]`, rawText: newNoteText, emailReminder: emailRem, emailDate: emailDt
+                        text: newNoteText + reminderInfo, rawText: newNoteText, emailReminder: emailRem, emailDate: emailDt, user: currentUser
                     });
                 } else {
                     await addDoc(collection(window.db, 'shared_visits'), {
-                        doctorId: docId, text: newNoteText + reminderInfo + ` [Ekleyen: ${currentUser}]`, rawText: newNoteText, date: new Date().toLocaleString('tr-TR'), timestamp: Date.now(), emailReminder: emailRem, emailDate: emailDt, user: currentUser
+                        doctorId: docId, text: newNoteText + reminderInfo, rawText: newNoteText, date: new Date().toLocaleString('tr-TR'), timestamp: Date.now(), emailReminder: emailRem, emailDate: emailDt, user: currentUser
                     });
                 }
                 setNewNoteText(''); setReminderEmail(''); setEditingNoteId(null); setReminderDate(getTenDaysLaterISO());
@@ -292,13 +328,20 @@
 
             const cleanTurkish = (str) => String(str).toLocaleLowerCase('tr-TR').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c');
 
+            // 👁️ "BUGÜN ZİYARET EDİLECEKLER" AKILLI SÜZGEÇ MANTIĞI (1. Fikir)
             const filteredDoctors = useMemo(() => {
                 return doctors.filter(doc => {
+                    if (activeRegion === 'today_panel') {
+                        // Bugünün tarihini 'GG.AA.YYYY' formatına getiriyoruz
+                        const todayStr = new Date().toLocaleDateString('tr-TR');
+                        const docVisitsList = doctorVisits.filter(v => v.doctorId === doc.id);
+                        return docVisitsList.some(v => v.emailDate && v.emailDate.split(' ')[0] === todayStr);
+                    }
                     const matchesRegion = activeRegion === 'all' || doc.regionId === activeRegion;
                     const searchTarget = cleanTurkish(doc.name) + " " + cleanTurkish(doc.clinic || '');
                     return matchesRegion && searchTarget.includes(cleanTurkish(searchTerm));
                 });
-            }, [doctors, activeRegion, searchTerm]);
+            }, [doctors, activeRegion, searchTerm, doctorVisits]);
 
             if (!fbReady) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-blue-500 font-black animate-pulse">ORTAK BULUT VERİ TABANINA BAĞLANILIYOR...</div>;
 
@@ -332,12 +375,18 @@
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between mb-4 px-2">
-                            <h2 className="text-xs font-black uppercase text-slate-400 tracking-wider">Bölgeler / Rotalar</h2>
-                            <button onClick={() => { setModalType('region'); setShowModal(true); }} className="p-1 hover:bg-slate-800 rounded-lg text-blue-400"><Icon name="plus" size={18} /></button>
-                        </div>
-
                         <div className="space-y-1 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+                            {/* 🚨 1. FİKİR: BUGÜN GEZİLECEKLER FİLTRE BUTONU */}
+                            <button onClick={() => setActiveRegion('today_panel')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm mb-4 transition-all ${activeRegion === 'today_panel' ? 'bg-amber-500 text-white shadow-lg' : 'bg-slate-800/60 text-amber-400 hover:bg-slate-800'}`}>
+                                <span className="flex items-center gap-3"><Icon name="calendar-check" size={18} /> Bugün Gezilecekler</span>
+                                <span className="text-xs bg-slate-900 text-amber-400 px-2 py-0.5 rounded-md font-black">Rota</span>
+                            </button>
+
+                            <div className="flex items-center justify-between mb-2 px-2">
+                                <h2 className="text-xs font-black uppercase text-slate-400 tracking-wider">Bölgeler / Rotalar</h2>
+                                <button onClick={() => { setModalType('region'); setShowModal(true); }} className="p-1 hover:bg-slate-800 rounded-lg text-blue-400"><Icon name="plus" size={18} /></button>
+                            </div>
+
                             <button onClick={() => { setActiveRegion('all'); }} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'all' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
                                 <span className="flex items-center gap-3"><Icon name="globe" size={18} /> Tüm Hekimler</span>
                                 <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">{doctors.length}</span>
@@ -353,32 +402,30 @@
                                 </div>
                             ))}
 
-                            {/* YENİ EKLEME: Sol Menüye Eklenen Personel Ayar Butonu */}
-                            <div className="mt-4 pt-4 border-t border-slate-800">
-                                <button onClick={() => { setActiveRegion('users_panel'); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'users_panel' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                            <div className="mt-4 pt-4 border-t border-slate-800 space-y-1">
+                                <button onClick={() => setActiveRegion('users_panel')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'users_panel' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
                                     <Icon name="settings" size={18} /> Ekip & Şifre Yönetimi
                                 </button>
+                                
+                                {/* 📥 / 📤 3. FİKİR: EXCEL BUTONLARININ YERİ */}
+                                <button onClick={handleExcelExport} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-xs text-emerald-400 hover:bg-slate-800/50">
+                                    <Icon name="file-spreadsheet" size={16} /> Excel Portföy İndir
+                                </button>
+                                <button onClick={() => fileInputRef.current.click()} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-xs text-blue-400 hover:bg-slate-800/50">
+                                    <Icon name="upload" size={16} /> Excel'den Toplu Yükle
+                                </button>
+                                <input type="file" ref={fileInputRef} onChange={handleExcelImport} accept=".xlsx, .xls" className="hidden" />
                             </div>
                         </div>
 
                         <div className="mt-auto pt-4 flex items-center justify-between bg-slate-800/40 p-3 rounded-2xl">
-                            <div className="truncate"><p className="text-xs font-black text-white truncate">{currentUser}</p><p className="text-[8px] text-emerald-400 font-bold uppercase tracking-wider">Oturum Açık</p></div>
+                            <div className="truncate"><p className="text-xs font-black text-white truncate">{currentUser}</p><p className="text-[8px] text-emerald-400 font-bold uppercase tracking-wider">Otum Açık</p></div>
                             <button onClick={handleLogoutAction} className="p-2 text-red-400 hover:bg-red-400/10 rounded-xl"><Icon name="log-out" size={18} /></button>
                         </div>
                     </aside>
 
-                    <div className="mobile-bottom-nav-container md:hidden">
-                        <div className="mobile-bottom-nav">
-                            <button onClick={() => setActiveRegion('all')} className={`flex-1 flex flex-col items-center gap-1 p-2 rounded-xl text-slate-400 ${activeRegion==='all'?'text-blue-500':''}`}><Icon name="globe" size={18}/> <span className="text-[9px]">Tümü</span></button>
-                            {regions.map(r => <button key={r.id} onClick={() => setActiveRegion(r.id)} className={`flex-1 flex flex-col items-center gap-1 p-2 rounded-xl text-slate-400 ${activeRegion===r.id?'text-blue-500':''}`}><Icon name="map-pin" size={18}/> <span className="text-[9px] truncate max-w-[60px]">{r.name.split(' ')[0]}</span></button>)}
-                            <button onClick={() => setActiveRegion('users_panel')} className={`flex-1 flex flex-col items-center gap-1 p-2 rounded-xl text-slate-400 ${activeRegion==='users_panel'?'text-blue-500':''}`}><Icon name="settings" size={18}/> <span className="text-[9px]">Ekip</span></button>
-                        </div>
-                        <button onClick={handleLogoutAction} className="mobile-logout-btn text-red-500 font-black"><Icon name="log-out" size={18} /><span className="text-[9px]">ÇIKIŞ</span></button>
-                    </div>
-
                     <main className="main-content flex-1 md:ml-72 p-4 md:p-10 bg-slate-50">
                         {activeRegion === 'users_panel' ? (
-                            /* 🔐 GİZLİ KULLANICI EKLEME VE YÖNETİM PANELİ ARAYÜZÜ */
                             <div className="space-y-6 animate-in">
                                 <header className="flex justify-between items-center mb-6">
                                     <div>
@@ -389,32 +436,30 @@
                                         + Yeni Temsilci Ekle
                                     </button>
                                 </header>
-
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                                     {systemUsers.map(u => (
                                         <div key={u.id} className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col justify-between">
                                             <div>
                                                 <div className="bg-blue-50 text-blue-600 p-3 rounded-2xl inline-flex mb-4"><Icon name="user" size={24} /></div>
                                                 <h4 className="text-lg font-black text-slate-800">{u.name}</h4>
-                                                <p className="text-xs text-slate-400 font-bold mt-1">Kullanıcı Adı: <span className="text-slate-700">{u.username}</span></p>
-                                                <p className="text-xs text-slate-400 font-bold">Giriş Şifresi: <span className="text-slate-700">{u.password}</span></p>
+                                                <p className="text-xs text-slate-400 font-bold mt-1">Kullanıcı: <span className="text-slate-700">{u.username}</span></p>
+                                                <p className="text-xs text-slate-400 font-bold">Şifre: <span className="text-slate-700">{u.password}</span></p>
                                             </div>
-                                            {u.username !== 'admin' && (
-                                                <button onClick={() => handleDeleteUser(u.id)} className="w-full mt-4 py-2 bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold rounded-xl transition-colors">Hesabı Kaldır</button>
-                                            )}
+                                            {u.username !== 'admin' && <button onClick={() => handleDeleteUser(u.id)} className="w-full mt-4 py-2 bg-red-50 text-red-500 text-xs font-bold rounded-xl">Hesabı Kaldır</button>}
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         ) : (
-                            /* Standart CRM Ekranı */
                             <>
                                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                                     <div>
-                                        <h2 className="text-2xl font-extrabold text-slate-800">{activeRegion === 'all' ? 'Tüm Portföy' : regions.find(r => r.id === activeRegion)?.name}</h2>
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Ortak Hekim Kartları & Ziyaret Kayıtları</p>
+                                        <h2 className="text-2xl font-extrabold text-slate-800">
+                                            {activeRegion === 'all' ? 'Tüm Portföy' : activeRegion === 'today_panel' ? '📅 Bugün Ziyaret Edilecek Hekimler' : regions.find(r => r.id === activeRegion)?.name}
+                                        </h2>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Saha İletişim Havuzu</p>
                                     </div>
-                                    <button onClick={() => { setModalType('doctor'); setDoctorForm({ name: '', phone: '', clinic: '', regionId: activeRegion === 'all' ? '' : activeRegion, note: '' }); setShowModal(true); }} className="px-5 py-3 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg w-full sm:w-auto hover:bg-blue-700">
+                                    <button onClick={() => { setModalType('doctor'); setDoctorForm({ name: '', phone: '', clinic: '', regionId: ['all', 'today_panel'].includes(activeRegion) ? '' : activeRegion, note: '' }); setShowModal(true); }} className="px-5 py-3 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg hover:bg-blue-700">
                                         + Yeni Hekim Ekle
                                     </button>
                                 </header>
@@ -439,7 +484,13 @@
                                                     
                                                     <div className="bg-slate-50 rounded-xl p-3 border mt-3 text-xs">
                                                         <p className="text-[9px] font-black text-slate-400 uppercase mb-1">📍 Son Saha Notu</p>
-                                                        {lastVisit ? <p className="font-bold text-slate-700">"{lastVisit.rawText || lastVisit.text}"</p> : <p className="text-slate-400 italic">Not alınmamış.</p>}
+                                                        {lastVisit ? (
+                                                            <div>
+                                                                <p className="font-bold text-slate-700">"{lastVisit.rawText || lastVisit.text}"</p>
+                                                                {/* 4. FİKİR: KART ÜZERİNDE YAZAN KİŞİNİN GÖSTERİMİ */}
+                                                                <span className="text-[8px] mt-1 inline-block bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold">✍️ Sorumlu: {lastVisit.user || 'Ekip Üyesi'}</span>
+                                                            </div>
+                                                        ) : <p className="text-slate-400 italic">Not alınmamış.</p>}
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2 mt-4">
@@ -454,6 +505,7 @@
                         )}
                     </main>
 
+                    {/* MODAL: Hekim Detay & Not Kayıt Ekranı */}
                     {selectedDoctor && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden p-8 animate-in">
@@ -478,14 +530,17 @@
                                         </div>
                                     </div>
                                     <div className="space-y-2 pt-4 border-t">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Geçmiş Notlar (Ortak Havuz)</p>
                                         {doctorVisits.filter(v => v.doctorId === selectedDoctor.id).map(n => (
                                             <div key={n.id} className="bg-slate-50 p-4 rounded-2xl border relative group/note">
                                                 <div className="absolute right-3 top-3 flex gap-2">
                                                     <button onClick={() => handleStartEditNote(n)} className="text-slate-300 hover:text-blue-500"><Icon name="pencil" size={14} /></button>
-                                                    <button onClick={() => handleDeleteNote(n.id)} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={14} /></button>
+                                                    <button onClick={() => handleDeleteNote(n.id)} className="text-slate-300 hover:text-red-500 transition-colors"><Icon name="trash-2" size={14} /></button>
                                                 </div>
                                                 <span className="text-[9px] font-black text-blue-500 block">{n.date}</span>
                                                 <p className="text-xs font-bold text-slate-700 mt-1.5 pr-12 leading-relaxed">"{n.rawText || n.text}"</p>
+                                                {/* 4. FİKİR: ESKİ GEÇMİŞ LİSTESİNDE NOTU YAZANIN GÖSTERİLMESİ */}
+                                                <div className="mt-2"><span className="text-[9px] font-extrabold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">📋 Not Sahibi: {n.user || 'Sistem Kararı'}</span></div>
                                             </div>
                                         ))}
                                     </div>
@@ -501,7 +556,6 @@
                                     <h3 className="text-lg font-extrabold text-slate-900 uppercase">{modalType === 'doctor' ? 'Yeni Hekim Ekle' : modalType === 'region' ? 'Yeni Rota Ekle' : 'Yeni Temsilci Ekle'}</h3>
                                     <button onClick={() => setShowModal(false)} className="p-2 border rounded-xl"><Icon name="x" size={16} /></button>
                                 </div>
-                                
                                 {modalType === 'region' && (
                                     <form onSubmit={handleAddRegion} className="space-y-4">
                                         <input type="text" required placeholder="Rota Adı (Örn: Isparta Yalvaç)" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={regionForm.name} onChange={e => setRegionForm({name: e.target.value})} />
@@ -514,15 +568,14 @@
                                         <input type="text" placeholder="Klinik / Hastane" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={doctorForm.clinic} onChange={e => setDoctorForm({...doctorForm, clinic: e.target.value})} />
                                         <input type="text" placeholder="Telefon" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={doctorForm.phone} onChange={e => setDoctorForm({...doctorForm, phone: e.target.value})} />
                                         <select required className="w-full p-4 border rounded-xl font-bold text-sm text-slate-600 outline-none bg-slate-50" value={doctorForm.regionId} onChange={e => setDoctorForm({...doctorForm, regionId: e.target.value})}><option value="">Bölge / Rota Seçin...</option>{regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
-                                        <textarea placeholder="İlk ziyaret notu (İsteğe bağlı)..." className="w-full p-4 border rounded-xl font-bold text-xs h-16 outline-none resize-none bg-slate-50" value={doctorForm.note} onChange={e => setDoctorForm({...doctorForm, note: e.target.value})} />
+                                        <textarea placeholder="İlk ziyaret notu..." className="w-full p-4 border rounded-xl font-bold text-xs h-16 outline-none resize-none bg-slate-50" value={doctorForm.note} onChange={e => setDoctorForm({...doctorForm, note: e.target.value})} />
                                         <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black text-xs uppercase rounded-xl">Hekimi Ekle</button>
                                     </form>
                                 )}
-                                {/* FORM: Yeni Temsilci Bilgilerini Toplayan Alan */}
                                 {modalType === 'user' && (
                                     <form onSubmit={handleAddUser} className="space-y-4">
-                                        <input type="text" required placeholder="Temsilci Adı Soyadı (Örn: Alperen Yanbul)" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
-                                        <input type="text" required placeholder="Giriş Kullanıcı Adı (Örn: alperen)" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} />
+                                        <input type="text" required placeholder="Temsilci Adı Soyadı" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
+                                        <input type="text" required placeholder="Giriş Kullanıcı Adı" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} />
                                         <input type="text" required placeholder="Giriş Şifresi" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />
                                         <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black text-xs uppercase rounded-xl">Temsilci Hesabı Oluştur</button>
                                     </form>
