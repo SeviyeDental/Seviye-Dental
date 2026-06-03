@@ -316,5 +316,194 @@
                 </div>
             );
         };
+        // =================================================================
+        // 3. BÖLÜM: MODALLAR, YARDIMCI BİLEŞENLER VE UYGULAMANIN KAPANIŞI
+        // =================================================================
+
+        // Ortak Giriş Alanı Bileşeni
+        const InputField = ({ label, value, onChange, placeholder = "", type = "text" }) => (
+            <div>
+                <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">{label}</label>
+                <input 
+                    type={type} 
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-semibold text-sm placeholder-slate-300 transition-all" 
+                    value={value || ''} 
+                    onChange={e => onChange(e.target.value)} 
+                    placeholder={placeholder} 
+                />
+            </div>
+        );
+
+        // Hekim Detay ve Günlük Not Geçmişi Modalı (Info Veren Alan)
+        const DoctorDetailModal = ({ doctor, regions, onClose, newNoteText, setNewNoteText, onAddNote }) => {
+            if (!doctor) return null;
+            const regionName = regions.find(r => r.id === doctor.regionId)?.name;
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-end sm:items-center justify-center p-4">
+                    <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in">
+                        <div className="p-6 sm:p-8 border-b flex justify-between items-center bg-slate-50">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-500/20">
+                                    <Icon name="user-round" size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">{doctor.name}</h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Hekim Profili & Saha Günlüğü</p>
+                                </div>
+                            </div>
+                            <button onClick={onClose} className="bg-white border border-slate-200 text-slate-400 p-2.5 rounded-xl hover:text-red-500 transition-colors">
+                                <Icon name="x" size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            <div className="space-y-4">
+                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                    <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Bulunduğu Bölge / Rota</span>
+                                    <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5"><Icon name="map-pin" size={14} className="text-blue-500" /> {regionName || 'Belirtilmedi'}</span>
+                                </div>
+                                {doctor.clinic && (
+                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Çalıştığı Klinik</span>
+                                        <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5"><Icon name="building" size={14} className="text-slate-500" /> {doctor.clinic}</span>
+                                    </div>
+                                )}
+                                {doctor.phone && (
+                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Telefon Numarası</span>
+                                        <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5"><Icon name="phone" size={14} className="text-slate-500" /> {doctor.phone}</span>
+                                    </div>
+                                )}
+                                {doctor.productInterest && (
+                                    <div className="p-4 bg-orange-50/60 rounded-2xl border border-orange-100">
+                                        <span className="text-[9px] font-black uppercase text-orange-600 block mb-1">İlgilendiği Ürün / Protokol</span>
+                                        <span className="text-sm font-bold text-orange-800 flex items-center gap-1.5"><Icon name="package" size={14} /> {doctor.productInterest}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col h-full space-y-4">
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Ziyaret Günlüğüne Not Ekle</label>
+                                    <textarea 
+                                        placeholder="Bu ziyarette ne konuşuldu? Bir sonraki ziyarette ne yapılması gerekiyor?..." 
+                                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-semibold text-xs h-24 resize-none shadow-sm transition-all"
+                                        value={newNoteText}
+                                        onChange={e => setNewNoteText(e.target.value)}
+                                    />
+                                    <button 
+                                        onClick={() => onAddNote(doctor.id)}
+                                        className="w-full py-3 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-blue-700 transition-all shadow-md"
+                                    >
+                                        Notu Tarihle Birlikte Kaydet
+                                    </button>
+                                </div>
+
+                                <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Geçmiş Saha Günlükleri ({doctor.notes?.length || 0})</h4>
+                                    {doctor.notes && doctor.notes.map(note => (
+                                        <div key={note.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 relative group animate-in">
+                                            <p className="text-[10px] font-black text-blue-600 mb-1.5 flex items-center gap-1">
+                                                <Icon name="calendar-days" size={12} /> {note.date}
+                                            </p>
+                                            <p className="text-xs font-semibold text-slate-700 leading-relaxed">"{note.text}"</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Yeni Hekim / Yeni Bölge Ekleme Modalı
+        const GlobalModal = ({ isOpen, type, regions, onClose, doctorForm, setDoctorForm, regionForm, setRegionForm, onSubmit }) => {
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-end sm:items-center justify-center p-4">
+                    <form onSubmit={onSubmit} className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in">
+                        <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+                            <h3 className="text-lg font-extrabold text-slate-900 uppercase tracking-tight">
+                                {type === 'doctor' ? 'Yeni Hekim Ekle' : 'Yeni Bölge / Rota Ekle'}
+                            </h3>
+                            <button type="button" onClick={onClose} className="bg-white border p-2 rounded-xl text-slate-400 hover:text-red-500">
+                                <Icon name="x" size={18} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            {type === 'region' ? (
+                                <InputField 
+                                    label="Bölge / Rota Adı" 
+                                    value={regionForm.name} 
+                                    onChange={v => setRegionForm({ name: v })} 
+                                    placeholder="Örn: Isparta Yalvaç Rotaları" 
+                                />
+                            ) : (
+                                <>
+                                    <InputField label="Hekim Adı Soyadı" value={doctorForm.name} onChange={v => setDoctorForm({ ...doctorForm, name: v })} placeholder="Örn: Doç. Dr. Hande Hoca" />
+                                    <InputField label="Klinik / Hastane" value={doctorForm.clinic} onChange={v => setDoctorForm({ ...doctorForm, clinic: v })} placeholder="Örn: SDÜ Diş Hastanesi" />
+                                    <InputField label="Telefon Numarası" value={doctorForm.phone} onChange={v => setDoctorForm({ ...doctorForm, phone: v })} placeholder="Örn: 0555..." />
+                                    
+                                    <div>
+                                        <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Bölge Seçimi</label>
+                                        <select 
+                                            required
+                                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-semibold text-sm text-slate-700"
+                                            value={doctorForm.regionId}
+                                            onChange={e => setDoctorForm({ ...doctorForm, regionId: e.target.value })}
+                                        >
+                                            <option value="">Bölge Seçiniz...</option>
+                                            {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Ürün / Çalışma İlgisi</label>
+                                        <select 
+                                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-semibold text-sm text-slate-700"
+                                            value={doctorForm.productInterest}
+                                            onChange={e => setDoctorForm({ ...doctorForm, productInterest: e.target.value })}
+                                        >
+                                            <option value="Bone Level Implant">Bone Level Tasarımlar</option>
+                                            <option value="Ethoss Sentetik Kemik Grefti">Ethoss Sentetik Bone Graft</option>
+                                            <option value="Healing Abutment">Healing Abutments (İyileşme Başlığı)</option>
+                                            <option value="Platform Switching">Platform Switching Çözümler</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">İlk Ziyaret Notu (İsteğe Bağlı)</label>
+                                        <textarea 
+                                            placeholder="Hekimle ilgili ilk gözlemleriniz..." 
+                                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-semibold text-xs h-20 resize-none"
+                                            value={doctorForm.note}
+                                            onChange={e => setDoctorForm({ ...doctorForm, note: e.target.value })}
+                                        />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="p-6 bg-slate-50 border-t flex gap-3">
+                            <button type="button" onClick={onClose} className="flex-1 py-4 bg-white border border-slate-200 text-slate-400 font-bold rounded-2xl text-xs uppercase tracking-widest">İptal</button>
+                            <button type="submit" className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-2xl text-xs uppercase tracking-widest shadow-lg shadow-blue-500/10">Kaydet</button>
+                        </div>
+                    </form>
+                </div>
+            );
+        };
+
+        // Uygulamayı DOM'a Bağlama (Ayağa Kaldırma)
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(
+            <CRMApp />
+        );
+    </script>
+</body>
+</html>
 
         // EN ALT YARDIMCI BİLEŞENLER VE MODAL TASARIMLARI BİR SONRAKİ PARÇADA TAMAMLANACAK...
