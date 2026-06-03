@@ -2,113 +2,35 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Seviye Dental Medikal - Profesyonel Bulut Yönetim Sistemi</title>
-
-    <!-- Tailwind CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seviye Dental - Profesyonel Saha Satış & CRM Sistemi</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- React & ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     
-    <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- SheetJS (Excel Export) -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        window.FirebaseSDK = { initializeApp, getAuth, signInAnonymously, onAuthStateChanged, getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch };
-    </script>
-
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
-        
-        :root { --bg-main: #F8FAFC; }
-
-        html, body { 
-            height: 100%; margin: 0; padding: 0; background-color: var(--bg-main);
-            font-family: 'Inter', sans-serif; color: #1E293B; overflow-x: hidden; -webkit-tap-highlight-color: transparent;
-            overscroll-behavior-y: none;
-        }
-
-        #root { min-height: 100vh; background-color: var(--bg-main); }
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F8FAFC; color: #0F172A; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
-        .animate-in { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
-
-        @media (max-width: 768px) {
-            .mobile-bottom-nav-container {
-                position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #E2E8F0; z-index: 100;
-                display: flex; align-items: center; box-shadow: 0 -10px 20px -5px rgb(0 0 0 / 0.1);
-                padding-bottom: env(safe-area-inset-bottom);
-            }
-            .mobile-bottom-nav { 
-                flex: 1; display: flex; justify-content: flex-start; overflow-x: auto; padding: 0.75rem 0.5rem; gap: 0.5rem; 
-                scrollbar-width: none;
-            }
-            .mobile-bottom-nav::-webkit-scrollbar { display: none; }
-            .mobile-bottom-nav > button { min-width: 75px; max-width: 80px; flex-shrink: 0; }
-            .mobile-logout-btn {
-                border-left: 1px solid #E2E8F0; padding: 0.75rem 1rem; display: flex; flex-direction: column;
-                align-items: center; justify-content: center; gap: 1px; min-width: 70px; flex-shrink: 0;
-            }
-            .sidebar { display: none !important; }
-            .main-content { padding-bottom: calc(100px + env(safe-area-inset-bottom)); margin-left: 0 !important; width: 100% !important; min-height: 100vh; background-color: var(--bg-main); }
-        }
-        
-        select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1.25rem; }
-        input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 20px; }
+        .draggable-zone { min-height: 50px; }
     </style>
 </head>
-<body class="bg-slate-50">
+<body class="bg-slate-50 antialiased selection:bg-blue-500 selection:text-white">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
-        const { initializeApp, getAuth, signInAnonymously, onAuthStateChanged, getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch } = window.FirebaseSDK;
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCJJP857pMmLoCc7CMzswHNwTp_TAybMdE",
-            authDomain: "webapp-d239c.firebaseapp.com",
-            projectId: "webapp-d239c",
-            storageBucket: "webapp-d239c.firebasestorage.app",
-            messagingSenderId: "965046349663",
-            appId: "1:965046349663:web:dbdda634472521accad0ea",
-            measurementId: "G-6WR5KGQBCM"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        const appId = 'clinic-erp-v2';
-
-        const PERMISSIONS = [
-            { id: 'dashboard', label: 'Panel' },
-            { id: 'calendar', label: 'Ajanda' },
-            { id: 'surgeries', label: 'Ameliyat' },
-            { id: 'doctors', label: 'Hekimler' },
-            { id: 'patients', label: 'Hastalar' },
-            { id: 'stock', label: 'Stok' },
-            { id: 'warehouses', label: 'Depolar' },
-            { id: 'history', label: 'Geçmiş' }
-        ];
-
-        const Icon = ({ name, size = 20, className = "", title="" }) => {
+        // Dinamik İkon Bileşeni
+        const Icon = ({ name, size = 20, className = "" }) => {
             const iconRef = useRef(null);
             useEffect(() => {
                 if (iconRef.current && window.lucide) {
@@ -122,524 +44,277 @@
                     window.lucide.createIcons();
                 }
             }, [name, size, className]);
-            return <span ref={iconRef} className="inline-flex items-center justify-center" title={title}></span>;
+            return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
         };
-
-        const NavItem = ({ id, icon, label, active, setActive, hasPermission }) => (
-            <button 
-                onClick={() => hasPermission && setActive(id)} 
-                disabled={!hasPermission}
-                className={`flex-1 md:w-full flex flex-col md:flex-row items-center gap-1 md:gap-4 px-1 md:px-5 py-2 md:py-4 rounded-xl md:rounded-2xl font-bold transition-all relative
-                ${!hasPermission ? 'opacity-40 cursor-not-allowed bg-transparent' : 
-                  active === id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 md:hover:text-slate-200'}`}
-            >
-                <Icon name={icon} size={20} className={active === id ? "text-white" : "text-slate-400"} />
-                <span className="text-[10px] md:text-sm truncate font-black md:font-bold">{label}</span>
-            </button>
-        );
-
-        const InlineStockInput = ({ initialValue, onSave }) => {
-            const [val, setVal] = useState(initialValue || 0);
-            useEffect(() => { setVal(initialValue || 0); }, [initialValue]);
-            const handleBlur = () => {
-                const num = parseInt(val);
-                if (!isNaN(num) && num !== (initialValue || 0)) onSave(num);
-                else setVal(initialValue || 0);
-            };
-            return (
-                <input type="number" className="w-full text-center text-xs font-black outline-none bg-transparent border-b border-transparent focus:border-blue-500 focus:bg-white rounded transition-all text-slate-800" value={val === 0 ? '' : val} placeholder="0" onChange={e => setVal(e.target.value)} onBlur={handleBlur} onKeyDown={e => { if(e.key === 'Enter') e.target.blur(); }} />
-            );
-        };
-
-        const SearchBar = ({ onSearch, externalValue }) => {
-            const [val, setVal] = useState(externalValue || '');
-            useEffect(() => { setVal(externalValue || ''); }, [externalValue]);
-            useEffect(() => {
-                const timer = setTimeout(() => { onSearch(val); }, 400);
-                return () => clearTimeout(timer);
-            }, [val, onSearch]);
-            return (
-                <form className="relative flex-1 md:w-64" onSubmit={e => e.preventDefault()}>
-                    <input type="search" placeholder="Arama yap..." className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-bold shadow-sm" value={val} onChange={e => setVal(e.target.value)} />
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300"><Icon name="search" size={18}/></div>
-                </form>
-            );
-        };
-
-        const normalizeTr = (text) => text ? String(text).toLocaleLowerCase('tr-TR').replace(/[ğüşıöçĞÜŞİÖÇ]/g, m => ({'ğ':'g','ü':'u','ş':'s','ı':'i','ö':'o','ç':'c','Ğ':'g','Ü':'u','Ş':'s','İ':'i','Ö':'o','Ç':'c'}[m])) : '';
-        const App = () => {
-            const [isLoggedIn, setIsLoggedIn] = useState(true);
-            const [currentAppUser, setCurrentAppUser] = useState({ sysUsername: 'Yönetici (Şifresiz)', sysRole: 'admin', sysPerms: ['all'] });
-            const [fbUser, setFbUser] = useState(null);
-            const [loading, setLoading] = useState(true);
-            const [activeTab, setActiveTab] = useState('dashboard');
-            const [globalSearchTerm, setGlobalSearchTerm] = useState('');
-            const [externalSearchValue, setExternalSearchValue] = useState('');
-            const [consumptionSearch, setConsumptionSearch] = useState('');
-            const [patientSearch, setPatientSearch] = useState('');
-            const [showModal, setShowModal] = useState(false);
-            const [modalType, setModalType] = useState('');
-            const [uiMessage, setUiMessage] = useState(null);
-            const [editItem, setEditItem] = useState(null);
-            const [lastAction, setLastAction] = useState(null);
-            const [notifiedSurgeries, setNotifiedSurgeries] = useState({});
-
-            const [appUsers, setAppUsers] = useState([]);
-            const [doctors, setDoctors] = useState([]);
-            const [patients, setPatients] = useState([]);
-            const [stockCategories, setStockCategories] = useState([]);
-            const [stockItems, setStockItems] = useState([]);
-            const [logs, setLogs] = useState([]);
-            const [calendarNotes, setCalendarNotes] = useState([]);
-            const [surgeries, setSurgeries] = useState([]);
-            const [warehouses, setWarehouses] = useState([]);
-            const [doctorVisits, setDoctorVisits] = useState([]);
-
-            const [loginData, setLoginData] = useState({ username: '', password: '' });
-            const [expandedCategories, setExpandedCategories] = useState({});
-            
-            const [newVisitNote, setNewVisitNote] = useState('');
-            const [visitReminderDate, setVisitReminderDate] = useState('');
-            const [visitReminderNote, setVisitReminderNote] = useState('');
-
-            const getLocalDatetime = () => {
-                const tzoffset = (new Date()).getTimezoneOffset() * 60000;
-                return new Date(Date.now() - tzoffset).toISOString().slice(0, 16);
-            };
-
-            const [formData, setFormData] = useState({ 
-                name: '', productCode: '', brand: 'BİLİMPLANT', counts: {}, note: '', tcNo: '', phone: '', address: '', detail: '', categoryId: '', 
-                patientId: '', doctorId: '', prosDoctorId: '', lotNo: '', implantSize: '', usedMaterials: '',
-                consumptionProducts: [{ id: Date.now(), categoryId: '', productId: '', quantity: 1, sourceDepo: '' }],
-                toothNumbers: [''], newPatientName: '', newPatientTc: '', newPatientPhone: '', newDoctorName: '', newDoctorDetail: '', newProsDoctorName: '', newProsDoctorDetail: '',
-                calendarDate: '', calendarNote: '', surgeryDate: '', surgeryType: '', notifyEmail: '', fromDepo: '', toDepo: '', transferQty: 1, transactionDate: getLocalDatetime()
+        const CRMApp = () => {
+            // Hafıza Yönetimi (LocalStorage) - Veriler Asla Kaybolmaz
+            const [regions, setRegions] = useState(() => {
+                const localData = localStorage.getItem('crm_regions');
+                return localData ? JSON.parse(localData) : [
+                    { id: 'reg-1', name: 'Isparta Merkez', order: 0 },
+                    { id: 'reg-2', name: 'Burdur Merkez', order: 1 },
+                    { id: 'reg-3', name: 'Bucak Rotaları', order: 2 }
+                ];
             });
-            const [currentDate, setCurrentDate] = useState(new Date());
 
-            const showMessage = (text, type = "success") => { setUiMessage({ text, type }); setTimeout(() => setUiMessage(null), 3000); };
+            const [doctors, setDoctors] = useState(() => {
+                const localData = localStorage.getItem('crm_doctors');
+                return localData ? JSON.parse(localData) : [];
+            });
 
-            useEffect(() => {
-                return onAuthStateChanged(auth, async (user) => {
-                    if (!user) await signInAnonymously(auth);
-                    else setFbUser(user);
-                    setLoading(false);
+            const [activeRegion, setActiveRegion] = useState('all');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [showModal, setShowModal] = useState(false);
+            const [modalType, setModalType] = useState(''); // 'doctor' veya 'region'
+            const [selectedDoctor, setSelectedDoctor] = useState(null);
+            const [draggedRegionId, setDraggedRegionId] = useState(null);
+
+            // Yeni Form State'leri
+            const [doctorForm, setDoctorForm] = useState({ name: '', phone: '', email: '', clinic: '', regionId: '', productInterest: 'Bone Level Implant', note: '' });
+            const [regionForm, setRegionForm] = useState({ name: '' });
+            const [newNoteText, setNewNoteText] = useState('');
+
+            // Hafızayı Güncelleme Takibi
+            useEffect(() => { localStorage.setItem('crm_regions', JSON.stringify(regions)); }, [regions]);
+            useEffect(() => { localStorage.setItem('crm_doctors', JSON.stringify(doctors)); }, [doctors]);
+
+            // Sürükle-Bırak Mantığı (Bölge Sıralama)
+            const handleDragStart = (id) => setDraggedRegionId(id);
+            const handleDragOver = (e) => e.preventDefault();
+            const handleDrop = (targetId) => {
+                if (!draggedRegionId || draggedRegionId === targetId) return;
+                const draggedIdx = regions.findIndex(r => r.id === draggedRegionId);
+                const targetIdx = regions.findIndex(r => r.id === targetId);
+                
+                const updatedRegions = [...regions];
+                const [removed] = updatedRegions.splice(draggedIdx, 1);
+                updatedRegions.splice(targetIdx, 0, removed);
+
+                const reOrdered = updatedRegions.map((r, idx) => ({ ...r, order: idx }));
+                setRegions(reOrdered);
+                setDraggedRegionId(null);
+            };
+
+            // Hekim Ekleme Fonksiyonu
+            const handleAddDoctor = (e) => {
+                e.preventDefault();
+                if (!doctorForm.name || !doctorForm.regionId) return;
+                
+                const newDoc = {
+                    id: 'doc-' + Date.now(),
+                    ...doctorForm,
+                    notes: doctorForm.note ? [{ id: 'n-' + Date.now(), text: doctorForm.note, date: new Date().toLocaleString('tr-TR') }] : []
+                };
+                delete newDoc.note;
+
+                setDoctors([newDoc, ...doctors]);
+                setShowModal(false);
+                setDoctorForm({ name: '', phone: '', email: '', clinic: '', regionId: '', productInterest: 'Bone Level Implant', note: '' });
+            };
+
+            // Bölge Ekleme Fonksiyonu
+            const handleAddRegion = (e) => {
+                e.preventDefault();
+                if (!regionForm.name) return;
+                const newReg = { id: 'reg-' + Date.now(), name: regionForm.name, order: regions.length };
+                setRegions([...regions, newReg]);
+                setShowModal(false);
+                setRegionForm({ name: '' });
+            };
+
+            // Mevcut Hekime Yeni Günlük Notu Ekleme (Otomatik Tarih)
+            const handleAddNote = (docId) => {
+                if (!newNoteText.trim()) return;
+                const updated = doctors.map(doc => {
+                    if (doc.id === docId) {
+                        return {
+                            ...doc,
+                            notes: [{ id: 'n-' + Date.now(), text: newNoteText, date: new Date().toLocaleString('tr-TR') }, ...doc.notes]
+                        };
+                    }
+                    return doc;
                 });
-            }, []);
-
-            useEffect(() => {
-                if (!fbUser) return;
-                const sync = (col, setter) => onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', col)), (s) => setter(s.docs.map(d => ({ ...d.data(), id: d.id }))));
-                sync('appUsers', setAppUsers); sync('doctors', setDoctors); sync('patients', setPatients);
-                sync('stockCategories', setStockCategories); sync('stockItems', setStockItems); sync('logs', setLogs);
-                sync('calendarNotes', setCalendarNotes); sync('surgeries', setSurgeries); sync('warehouses', setWarehouses);
-                sync('doctorVisits', setDoctorVisits);
-            }, [fbUser]);
-
-            const normalizedStockItems = useMemo(() => {
-                const defaultDepo = warehouses[0]?.name || 'Ana Depo';
-                return stockItems.map(item => {
-                    let currentCounts = { ...(item.counts || {}) };
-                    if (Object.keys(currentCounts).length === 0 && item.count) currentCounts[defaultDepo] = item.count;
-                    return { ...item, counts: currentCounts, count: Object.values(currentCounts).reduce((a, b) => a + (parseInt(b) || 0), 0) };
-                });
-            }, [stockItems, warehouses]);
-
-            const sortedCategories = useMemo(() => [...stockCategories].sort((a, b) => (a.order || 0) - (b.order || 0)), [stockCategories]);
-            const activeReminders = useMemo(() => doctorVisits.filter(v => v.hasReminder && v.reminderDate === new Date().toISOString().split('T')[0] && !v.isCompleted), [doctorVisits]);
-
-            const handleAddVisitLog = async (doctorId) => {
-                if (!newVisitNote.trim()) return;
-                try {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'doctorVisits'), {
-                        doctorId, visitDate: new Date().toLocaleString('tr-TR'), note: newVisitNote,
-                        hasReminder: !!visitReminderDate, reminderDate: visitReminderDate, reminderNote: visitReminderNote, isCompleted: false, timestamp: Date.now()
-                    });
-                    setNewVisitNote(''); setVisitReminderDate(''); setVisitReminderNote('');
-                    showMessage("Ziyaret günlüğü başarıyla kaydedildi.");
-                } catch (e) { showMessage("Hata oluştu!", "error"); }
+                setDoctors(updated);
+                setNewNoteText('');
+                // Seçili hekim modalını da anlık güncelle
+                setSelectedDoctor(updated.find(d => d.id === docId));
             };
 
-            const handleDirectStockChange = async (item, warehouseName, newCount) => {
-                let counts = { ...(item.counts || {}) };
-                counts[warehouseName] = newCount;
-                const total = Object.values(counts).reduce((a, b) => a + (parseInt(b) || 0), 0);
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'stockItems', item.id), { counts, count: total });
-            };
-
-            const updateStockQuickly = async (item, delta) => {
-                const firstDepo = warehouses[0]?.name;
-                if (!firstDepo) return;
-                const currentCounts = { ...item.counts };
-                const newCount = Math.max(0, (parseInt(currentCounts[firstDepo]) || 0) + delta);
-                handleDirectStockChange(item, firstDepo, newCount);
-            };
-
-            const deleteRec = async (id, col) => {
-                if(confirm("Silmek istediğinize emin misiniz?")) {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
-                    showMessage("Kayıt silindi.", "info");
+            // Hekim Silme
+            const handleDeleteDoctor = (id) => {
+                if (confirm("Bu hekimi sistemden silmek istediğinize emin misiniz?")) {
+                    setDoctors(doctors.filter(d => d.id !== id));
+                    if (selectedDoctor?.id === id) setSelectedDoctor(null);
                 }
             };
 
-            const handleSave = async () => {
-                try {
-                    const colMap = { doctor: 'doctors', patient: 'patients', category: 'stockCategories', product: 'stockItems', warehouse: 'warehouses', surgery: 'surgeries' };
-                    if (modalType === 'consumption') {
-                        const batch = writeBatch(db);
-                        for (const cp of formData.consumptionProducts.filter(p => p.productId)) {
-                            const item = normalizedStockItems.find(i => i.id === cp.productId);
-                            let counts = { ...item.counts };
-                            counts[cp.sourceDepo] -= parseInt(cp.quantity) || 1;
-                            batch.update(doc(db, 'artifacts', appId, 'public', 'data', 'stockItems', item.id), { counts, count: Object.values(counts).reduce((a,b)=>a+(b||0),0) });
-                        }
-                        await batch.commit();
-                        setShowModal(false); showMessage("Stok çıkışı yapıldı."); return;
-                    }
-                    if (editItem) {
-                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colMap[modalType], editItem.id), formData);
-                    } else {
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colMap[modalType]), { ...formData, timestamp: Date.now() });
-                    }
-                    setShowModal(false); resetForm(); showMessage("Kaydedildi.");
-                } catch (e) { showMessage("Hata oluştu!", "error"); }
+            // Filtrelenmiş Hekim Listesi
+            const filteredDoctors = useMemo(() => {
+                return doctors.filter(doc => {
+                    const matchesRegion = activeRegion === 'all' || doc.regionId === activeRegion;
+                    const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                          (doc.clinic && doc.clinic.toLowerCase().includes(searchTerm.toLowerCase()));
+                    return matchesRegion && matchesSearch;
+                });
+            }, [doctors, activeRegion, searchTerm]);
+
+            // Yedek Dışa Aktarma
+            const exportBackup = () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ regions, doctors }, null, 2));
+                const dlAnchor = document.createElement('a');
+                dlAnchor.setAttribute("href", dataStr);
+                dlAnchor.setAttribute("download", `Seviye_CRM_Yedek_${new Date().toISOString().split('T')[0]}.json`);
+                dlAnchor.click();
             };
-
-            const resetForm = () => setFormData({ name: '', productCode: '', brand: 'BİLİMPLANT', counts: {}, note: '', tcNo: '', phone: '', address: '', detail: '', categoryId: '', patientId: '', doctorId: '', prosDoctorId: '', lotNo: '', consumptionProducts: [{ id: Date.now(), categoryId: '', productId: '', quantity: 1, sourceDepo: '' }], toothNumbers: [''], transactionDate: getLocalDatetime() });
-            const calendarDays = useMemo(() => {
-                const year = currentDate.getFullYear(), month = currentDate.getMonth();
-                const total = new Date(year, month + 1, 0).getDate(), start = new Date(year, month, 1).getDay();
-                const days = [];
-                for (let i = 0; i < (start === 0 ? 6 : start - 1); i++) days.push(null);
-                for (let d = 1; d <= total; d++) {
-                    const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                    days.push({ day: d, dateStr: ds, notes: calendarNotes.filter(n => n.date === ds) });
-                }
-                return days;
-            }, [currentDate, calendarNotes]);
-
-            const isSearchMatch = (item) => {
-                if (!globalSearchTerm) return true;
-                return Object.values(item).some(val => normalizeTr(val).includes(normalizeTr(globalSearchTerm)));
-            };
-
-            if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-blue-500 font-black animate-pulse">BAĞLANILIYOR...</div>;
 
             return (
-                <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 relative">
-                    <div className="fixed top-4 right-4 z-[150]">
-                        {uiMessage && <div className="px-6 py-4 rounded-2xl shadow-2xl text-white font-black bg-blue-600 text-sm animate-in">{uiMessage.text}</div>}
-                    </div>
-
-                    <aside className="sidebar w-72 bg-slate-900 text-slate-400 p-6 flex flex-col h-screen fixed top-0 left-0 z-40 shadow-2xl">
+                <div className="flex flex-col lg:flex-row min-h-screen">
+                    
+                    <aside className="w-full lg:w-80 bg-slate-900 text-white p-6 flex flex-col shadow-xl">
                         <div className="flex items-center gap-3 mb-8 px-2">
-                            <div className="bg-blue-600 p-2 rounded-xl text-white"><Icon name="shield-check" size={24} /></div>
-                            <span className="text-white font-black text-xl tracking-tighter">Seviye<br/><span className="text-blue-500 text-sm font-bold">Dental Medikal</span></span>
+                            <div className="bg-blue-600 p-2.5 rounded-2xl text-white shadow-lg shadow-blue-500/30">
+                                <Icon name="activity" size={24} />
+                            </div>
+                            <div>
+                                <h1 className="text-xl font-extrabold tracking-tight">Seviye<span className="text-blue-500">CRM</span></h1>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Saha Satış & Portföy</p>
+                            </div>
                         </div>
-                        <nav className="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
-                            {PERMISSIONS.map(p => <NavItem key={p.id} id={p.id} icon={p.id==='dashboard'?'layout-dashboard':p.id==='calendar'?'calendar':p.id==='surgeries'?'scissors':p.id==='doctors'?'user-round':p.id==='patients'?'users':p.id==='stock'?'package':p.id==='warehouses'?'map-pin':'clipboard-list'} label={p.label} active={activeTab} setActive={setActiveTab} hasPermission={true} />)}
-                        </nav>
+
+                        <div className="flex items-center justify-between mb-4 px-2">
+                            <h2 className="text-xs font-black uppercase text-slate-400 tracking-wider">Bölgeler / Rotalar</h2>
+                            <button onClick={() => { setModalType('region'); setShowModal(true); }} className="p-1 hover:bg-slate-800 rounded-lg text-blue-400 transition-colors" title="Yeni Bölge Ekle">
+                                <Icon name="plus" size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-1 overflow-y-auto custom-scrollbar flex-1 pr-1">
+                            <button 
+                                onClick={() => setActiveRegion('all')}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all
+                                ${activeRegion === 'all' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
+                            >
+                                <span className="flex items-center gap-3"><Icon name="globe" size={18} /> Tüm Hekimler</span>
+                                <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-bold">{doctors.length}</span>
+                            </button>
+
+                            {regions.map(reg => {
+                                const count = doctors.filter(d => d.regionId === reg.id).length;
+                                return (
+                                    <div
+                                        key={reg.id}
+                                        draggable
+                                        onDragStart={() => handleDragStart(reg.id)}
+                                        onDragOver={handleDragOver}
+                                        onDrop={() => handleDrop(reg.id)}
+                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-grab active:cursor-grabbing border border-transparent
+                                        ${activeRegion === reg.id ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}
+                                        ${draggedRegionId === reg.id ? 'opacity-40 border-dashed border-slate-500 bg-slate-800' : ''}`}
+                                        onClick={() => setActiveRegion(reg.id)}
+                                    >
+                                        <span className="flex items-center gap-3 truncate">
+                                            <Icon name="grip-vertical" size={16} className="text-slate-600 group-hover:text-slate-400 shrink-0" />
+                                            <span className="truncate">{reg.name}</span>
+                                        </span>
+                                        <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-bold shrink-0">{count}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="mt-auto pt-4 border-t border-slate-800">
+                            <button onClick={exportBackup} className="w-full flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md">
+                                <Icon name="download" size={16} /> Veri Tabanı Yedeği Al
+                            </button>
+                        </div>
                     </aside>
 
-                    <div className="mobile-bottom-nav-container md:hidden">
-                        <div className="mobile-bottom-nav">
-                            {PERMISSIONS.map(p => <NavItem key={p.id} id={p.id} icon={p.id==='dashboard'?'layout-dashboard':p.id==='calendar'?'calendar':p.id==='surgeries'?'scissors':p.id==='doctors'?'user-round':p.id==='patients'?'users':p.id==='stock'?'package':p.id==='warehouses'?'map-pin':'clipboard-list'} label={p.label} active={activeTab} setActive={setActiveTab} hasPermission={true} />)}
-                        </div>
-                        <button onClick={() => setIsLoggedIn(false)} className="mobile-logout-btn text-red-500 font-black">
-                            <Icon name="log-out" size={18} />
-                            <span className="text-[9px] uppercase">ÇIKIŞ</span>
-                        </button>
-                    </div>
-
-                    <main className="main-content flex-1 md:ml-72 p-4 md:p-10 bg-slate-50">
-                        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                    <main className="flex-1 p-6 lg:p-10 overflow-y-auto">
+                        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                             <div>
-                                <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Seviye Dental Medikal Panel</h2>
-                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Bulut Yönetim Sistemi</p>
+                                <h2 className="text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight">
+                                    {activeRegion === 'all' ? 'Tüm Portföy' : regions.find(r => r.id === activeRegion)?.name}
+                                </h2>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Hekim Kartları & Günlük Ziyaret Notları</p>
                             </div>
-                            <SearchBar onSearch={setGlobalSearchTerm} />
+                            <button onClick={() => { setModalType('doctor'); setDoctorForm({...doctorForm, regionId: activeRegion === 'all' ? '' : activeRegion}); setShowModal(true); }} className="px-5 py-3 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] transition-all w-full sm:w-auto">
+                                + Yeni Hekim Ekle
+                            </button>
                         </header>
 
-                        {activeTab === 'dashboard' && (
-                            <div className="space-y-6 animate-in">
-                                {activeReminders.length > 0 && (
-                                    <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 rounded-[2.5rem] text-white shadow-xl animate-in">
-                                        <h3 className="font-black text-lg flex items-center gap-2 mb-4"><Icon name="bell-ring" size={24} /> Bugün İçin Hatırlatmalarınız Var!</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {activeReminders.map(rem => (
-                                                <div key={rem.id} className="bg-white/10 p-4 rounded-2xl flex justify-between items-center border border-white/20">
-                                                    <div>
-                                                        <p className="text-xs font-black uppercase text-orange-100">Hekim: {doctors.find(d => d.id === rem.doctorId)?.name || 'Hekim'}</p>
-                                                        <p className="text-sm font-bold mt-1">"{rem.reminderNote}"</p>
-                                                    </div>
-                                                    <button onClick={async () => await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'doctorVisits', rem.id), { isCompleted: true })} className="bg-white text-orange-600 px-3 py-1.5 rounded-xl text-xs font-black">Tamamlandı</button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <StatCard title="Hekimler" value={doctors.length} icon="user-round" color="blue" />
-                                    <StatCard title="Hastalar" value={patients.length} icon="users" color="purple" />
-                                    <StatCard title="Stok Kalemi" value={normalizedStockItems.length} icon="package" color="orange" />
-                                    <StatCard title="Bekleyen Ameliyat" value={surgeries.length} icon="scissors" color="emerald" />
-                                </div>
-                                <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
-                                    <h4 className="font-black text-slate-800 mb-6 flex items-center gap-2"><Icon name="pie-chart" className="text-blue-500" /> Kategori Bazlı Dağılım</h4>
-                                    <div className="space-y-4">
-                                        {sortedCategories.map(cat => {
-                                            const total = normalizedStockItems.filter(i => i.categoryId === cat.id).reduce((s, i) => s + (parseInt(i.count) || 0), 0);
-                                            return (
-                                                <div key={cat.id} className="space-y-1">
-                                                    <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">{cat.name} <span className="text-blue-600 font-bold">{total} Adet</span></div>
-                                                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border"><div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, (total/1000)*100)}%` }}></div></div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
+                        <div className="mb-6 relative">
+                            <input 
+                                type="text" 
+                                placeholder="Hekim adı veya klinik aratın..." 
+                                className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm shadow-sm transition-all"
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                            />
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                <Icon name="search" size={20} />
                             </div>
-                        )}
+                        </div>
 
-                        {activeTab === 'stock' && (
-                            <div className="space-y-6 animate-in">
-                                <div className="flex justify-end gap-2 mb-4">
-                                    <button onClick={() => { setModalType('consumption'); resetForm(); setShowModal(true); }} className="bg-orange-500 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md">Detaylı Stok Çıkışı</button>
-                                    <button onClick={() => { setModalType('category'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold text-xs shadow-sm">+ Kategori</button>
-                                    <button onClick={() => { setModalType('product'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md">+ Yeni Ürün</button>
-                                </div>
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                                    {sortedCategories.map(cat => (
-                                        <div key={cat.id} className="bg-white p-6 md:p-8 rounded-[2.5rem] border shadow-sm">
-                                            <h3 className="font-black text-slate-800 flex items-center justify-between mb-4 pb-2 border-b">
-                                                <span className="flex items-center gap-2"><Icon name="folder" className="text-orange-500" /> {cat.name}</span>
-                                                <button onClick={() => deleteRec(cat.id, 'stockCategories')} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={16}/></button>
-                                            </h3>
-                                            <div className="space-y-4">
-                                                {normalizedStockItems.filter(i => i.categoryId === cat.id && isSearchMatch(i)).map(item => (
-                                                    <div key={item.id} className="p-5 rounded-[2rem] bg-slate-50 border">
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <div><p className="font-black text-slate-800 text-sm">{item.name}</p><span className="text-[10px] bg-white px-2 py-0.5 rounded border text-blue-600 font-bold">{item.productCode}</span></div>
-                                                            <button onClick={() => deleteRec(item.id, 'stockItems')} className="text-slate-200 hover:text-red-500"><Icon name="trash-2" size={16}/></button>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                                                            {warehouses.map(w => (
-                                                                <div key={w.id} className="bg-white p-2 rounded-xl border text-center">
-                                                                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">{w.name}</p>
-                                                                    <InlineStockInput initialValue={item.counts[w.name] || 0} onSave={(val) => handleDirectStockChange(item, w.name, val)} />
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        <div className="flex items-center justify-between text-xs font-black text-slate-400">
-                                                            <span>Toplam: <span className="text-blue-600">{item.count}</span></span>
-                                                            <div className="flex gap-1 bg-white p-1 rounded-lg border">
-                                                                <button onClick={() => updateStockQuickly(item, -1)} className="px-2 py-0.5 bg-slate-50 rounded font-bold">-</button>
-                                                                <button onClick={() => updateStockQuickly(item, 1)} className="px-2 py-0.5 bg-slate-50 rounded font-bold">+</button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            {filteredDoctors.map(doc => {
+                                const docRegion = regions.find(r => r.id === doc.regionId)?.name;
+                                return (
+                                    <div key={doc.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-slate-200 transition-all p-6 flex flex-col justify-between group relative">
+                                        <div>
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="bg-blue-50 text-blue-600 p-3 rounded-2xl">
+                                                    <Icon name="user-round" size={24} />
+                                                </div>
+                                                <span className="text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md">
+                                                    {docRegion || 'Bilinmeyen'}
+                                                </span>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
-                        {activeTab === 'doctors' && (
-                            <div className="space-y-6 animate-in">
-                                <div className="flex justify-end mb-4"><button onClick={() => { setModalType('doctor'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-xs shadow-md">+ Yeni Hekim</button></div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {doctors.filter(isSearchMatch).map(item => (
-                                        <div key={item.id} className="bg-white p-8 rounded-[2.5rem] border shadow-sm relative">
-                                            <button onClick={() => deleteRec(item.id, 'doctors')} className="absolute top-6 right-6 text-slate-200 hover:text-red-500"><Icon name="trash-2" size={20}/></button>
-                                            <div className="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center text-blue-600 mb-4"><Icon name="user-round" size={24} /></div>
-                                            <h4 className="text-xl font-black text-slate-800 mb-1">{item.name}</h4>
-                                            <p className="text-xs text-slate-400 mb-4">{item.detail || 'Diş Hekimi'}</p>
+                                            <h3 className="text-lg font-extrabold text-slate-800 leading-snug mb-1 group-hover:text-blue-600 transition-colors">{doc.name}</h3>
+                                            {doc.clinic && <p className="text-xs font-bold text-slate-500 flex items-center gap-1.5 mb-3"><Icon name="building" size={14} /> {doc.clinic}</p>}
                                             
-                                            <div className="mt-4 bg-slate-50 p-4 rounded-[2rem] border space-y-3">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Icon name="notebook" size={14}/> Ziyaret Günlüğü & Not Ekle</p>
-                                                <textarea placeholder="Bu ziyarette ne konuşuldu?..." className="w-full p-3 bg-white border rounded-xl outline-none text-xs font-medium h-16 resize-none shadow-sm" value={newVisitNote} onChange={e => setNewVisitNote(e.target.value)} />
-                                                <div className="flex gap-2">
-                                                    <input type="date" className="p-2 bg-white border rounded-lg text-[10px] font-bold outline-none text-slate-600" value={visitReminderDate} onChange={e => setVisitReminderDate(e.target.value)} />
-                                                    <input type="text" placeholder="Hatırlatma notu" className="flex-1 p-2 bg-white border rounded-lg text-[10px] font-bold outline-none" value={visitReminderNote} onChange={e => setVisitReminderNote(e.target.value)} />
+                                            {doc.productInterest && (
+                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-orange-50 text-orange-700 rounded-lg text-[10px] font-bold mb-4 border border-orange-100">
+                                                    <Icon name="package" size={12} /> {doc.productInterest}
                                                 </div>
-                                                <button onClick={() => handleAddVisitLog(item.id)} className="w-full py-2 bg-slate-950 text-white font-black text-[10px] uppercase rounded-xl hover:bg-slate-800 transition-all">Ziyareti Günlüğe Kaydet</button>
-                                                
-                                                <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1 pt-2 border-t">
-                                                    {doctorVisits.filter(v => v.doctorId === item.id).sort((a,b)=>b.timestamp-a.timestamp).map(v => (
-                                                        <div key={v.id} className="bg-white p-3 rounded-xl border shadow-sm relative group/visit">
-                                                            <button onClick={() => deleteRec(v.id, 'doctorVisits')} className="absolute right-2 top-2 text-slate-200 hover:text-red-500"><Icon name="x" size={12}/></button>
-                                                            <p className="text-[9px] font-black text-blue-600 mb-1">{v.visitDate}</p>
-                                                            <p className="text-xs font-bold text-slate-700">"{v.note}"</p>
-                                                            {v.hasReminder && <div className="mt-2 p-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg text-[9px] font-black">🔔 {v.reminderDate} -> {v.reminderNote}</div>}
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                            )}
+
+                                            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mt-2">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1"><Icon name="clock" size={12} /> Son Saha Notu</p>
+                                                {doc.notes && doc.notes.length > 0 ? (
+                                                    <div>
+                                                        <p className="text-xs font-semibold text-slate-700 line-clamp-2 leading-relaxed">"{doc.notes[0].text}"</p>
+                                                        <p className="text-[9px] text-blue-500 font-bold mt-2">{doc.notes[0].date}</p>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs font-medium text-slate-400 italic">Henüz bir ziyaret notu alınmamış.</p>
+                                                )}
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
-                        {activeTab === 'patients' && (
-                            <div className="space-y-6 animate-in">
-                                <div className="flex justify-end mb-4"><button onClick={() => { setModalType('patient'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-2 rounded-xl font-bold text-xs shadow-md">+ Yeni Hasta</button></div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {patients.filter(isSearchMatch).map(item => (
-                                        <div key={item.id} className="bg-white p-8 rounded-[2.5rem] border shadow-sm relative">
-                                            <button onClick={() => deleteRec(item.id, 'patients')} className="absolute top-6 right-6 text-slate-200 hover:text-red-500"><Icon name="trash-2" size={20}/></button>
-                                            <div className="bg-purple-50 w-12 h-12 rounded-xl flex items-center justify-center text-purple-600 mb-4"><Icon name="users" size={24} /></div>
-                                            <h4 className="text-xl font-black text-slate-800 mb-1">{item.name}</h4>
-                                            <p className="text-xs text-slate-400">TC: {item.tcNo || '-'}</p>
-                                            <p className="text-xs text-slate-400 mb-2">Tel: {item.phone || '-'}</p>
-                                            {item.note && <p className="text-xs text-slate-500 italic mt-2 bg-slate-50 p-3 rounded-xl">"{item.note}"</p>}
+                                        <div className="flex gap-2 mt-6 border-t border-slate-100 pt-4">
+                                            <button onClick={() => setSelectedDoctor(doc)} className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5">
+                                                <Icon name="notebook" size={14} /> Detay & Günlük ({doc.notes?.length || 0})
+                                            </button>
+                                            <button onClick={() => handleDeleteDoctor(doc.id)} className="p-2.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all" title="Hekimi Sil">
+                                                <Icon name="trash-2" size={16} />
+                                            </button>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'warehouses' && (
-                            <div className="space-y-6 animate-in">
-                                <div className="flex justify-end mb-4"><button onClick={() => { setModalType('warehouse'); resetForm(); setEditItem(null); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-2 rounded-xl font-bold text-xs shadow-md">+ Yeni Depo</button></div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {warehouses.map(w => (
-                                        <div key={w.id} className="bg-white p-6 rounded-2xl border shadow-sm flex justify-between items-center">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-blue-50 p-2 rounded-xl text-blue-600"><Icon name="map-pin" size={20} /></div>
-                                                <div><h4 className="font-black text-slate-800">{w.name}</h4><p className="text-[9px] text-slate-400 uppercase">Aktif Depo</p></div>
-                                            </div>
-                                            <button onClick={() => deleteRec(w.id, 'warehouses')} className="text-slate-200 hover:text-red-500"><Icon name="trash-2" size={18}/></button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'surgeries' && (
-                            <div className="space-y-6 animate-in">
-                                <div className="flex justify-end mb-4"><button onClick={() => { setModalType('surgery'); resetForm(); setShowModal(true); }} className="bg-blue-600 text-white px-8 py-2 rounded-xl font-bold text-xs shadow-md">+ Ameliyat Ekle</button></div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {surgeries.map(s => (
-                                        <div key={s.id} className="bg-white p-6 rounded-2xl border shadow-sm relative">
-                                            <button onClick={() => deleteRec(s.id, 'surgeries')} className="absolute top-4 right-4 text-slate-200 hover:text-red-500"><Icon name="trash-2" size={18}/></button>
-                                            <h4 className="font-black text-slate-800">🦷 {s.surgeryType}</h4>
-                                            <p className="text-xs text-blue-600 font-bold mt-1">🗓️ {s.date}</p>
-                                            <p className="text-xs text-slate-500 mt-2">Hekim: {doctors.find(d=>d.id===s.doctorId)?.name || 'Bilinmiyor'}</p>
-                                            {s.note && <p className="text-xs text-slate-400 italic mt-1 bg-slate-50 p-2 rounded-lg">"{s.note}"</p>}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'calendar' && (
-                            <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border shadow-sm animate-in">
-                                <div className="flex justify-between items-center mb-6">
-                                    <div className="flex items-center gap-2">
-                                        <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))} className="p-2 bg-slate-100 rounded-xl"><Icon name="chevron-left" /></button>
-                                        <span className="font-black text-sm uppercase text-slate-600">{currentDate.toLocaleString('tr-TR', { month: 'long', year: 'numeric' })}</span>
-                                        <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))} className="p-2 bg-slate-100 rounded-xl"><Icon name="chevron-right" /></button>
                                     </div>
-                                </div>
-                                <div className="calendar-grid border-l border-t border-slate-100 rounded-2xl overflow-hidden">
-                                    {['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'].map(d => <div key={d} className="p-3 text-center bg-slate-50 border-r border-b text-[10px] font-black text-slate-400 uppercase">{d}</div>)}
-                                    {calendarDays.map((d, i) => (
-                                        <div key={i} className={`min-h-[80px] p-2 border-r border-b border-slate-100 text-left ${d ? 'bg-white' : 'bg-slate-50/20'} ${d?.dateStr === new Date().toISOString().split('T')[0] ? 'bg-blue-50/20' : ''}`}>
-                                            {d && <span className="text-xs font-black text-slate-400">{d.day}</span>}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                                );
+                            })}
+                        </div>
 
-                        {activeTab === 'history' && (
-                            <div className="bg-white rounded-[2.5rem] border shadow-sm overflow-hidden overflow-x-auto animate-in">
-                                <table className="w-full text-left min-w-[600px]">
-                                    <thead><tr className="bg-slate-50 border-b text-slate-400 text-[10px] font-black uppercase"><th className="p-5">Tarih</th><th className="p-5">İşlem</th><th className="p-5">Açıklama</th></tr></thead>
-                                    <tbody className="divide-y text-xs text-slate-700">
-                                        {logs.slice().sort((a,b)=>b.timestamp-a.timestamp).map(l => (
-                                            <tr key={l.id} className="hover:bg-slate-50/50">
-                                                <td className="p-5 font-bold text-blue-600">{new Date(l.timestamp).toLocaleDateString('tr-TR')}</td>
-                                                <td className="p-5"><span className="px-2 py-1 rounded bg-blue-50 text-blue-600 font-bold uppercase text-[9px]">{l.action}</span></td>
-                                                <td className="p-5">{l.description}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                        {filteredDoctors.length === 0 && (
+                            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200 mt-6">
+                                <div className="bg-slate-50 text-slate-400 p-4 rounded-full inline-flex mb-4"><Icon name="users" size={32} /></div>
+                                <h3 className="font-extrabold text-slate-700 text-lg">Hekim Bulunamadı</h3>
+                                <p className="text-slate-400 text-sm mt-1">Bu kritere uygun veya bu bölgeye kayıtlı hekim bulunmuyor.</p>
                             </div>
                         )}
                     </main>
-
-                    {showModal && (
-                        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-                            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in">
-                                <div className="p-6 border-b flex justify-between items-center bg-slate-50">
-                                    <h3 className="text-md font-black text-slate-900 uppercase">Kayıt Formu</h3>
-                                    <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-red-500"><Icon name="x" size={20} /></button>
-                                </div>
-                                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                                    {modalType === 'consumption' && (
-                                        <div className="space-y-4">
-                                            <select className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs" value={formData.productId} onChange={e => setFormData({...formData, productId: e.target.value})}><option value="">Ürün Seçin</option>{normalizedStockItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>
-                                            <select className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs" value={formData.sourceDepo} onChange={e => setFormData({...formData, sourceDepo: e.target.value})}><option value="">Çıkış Deposu</option>{warehouses.map(w => <option key={w.id} value={w.name}>{w.name}</option>)}</select>
-                                            <InputField label="Miktar" value={formData.transferQty} onChange={v => setFormData({...formData, transferQty: v})} />
-                                        </div>
-                                    )}
-                                    {['doctor', 'category', 'warehouse'].includes(modalType) && <InputField label="İsim / Başlık" value={formData.name} onChange={v => setFormData({...formData, name: v})} />}
-                                    {modalType === 'patient' && (
-                                        <>
-                                            <InputField label="Hasta Adı Soyadı" value={formData.name} onChange={v => setFormData({...formData, name: v})} />
-                                            <InputField label="TC Kimlik" value={formData.tcNo} onChange={v => setFormData({...formData, tcNo: v})} />
-                                            <InputField label="Telefon" value={formData.phone} onChange={v => setFormData({...formData, phone: v})} />
-                                        </>
-                                    )}
-                                    {modalType === 'product' && (
-                                        <>
-                                            <InputField label="Ürün Adı" value={formData.name} onChange={v => setFormData({...formData, name: v})} />
-                                            <InputField label="Ürün Kodu" value={formData.productCode} onChange={v => setFormData({...formData, productCode: v})} />
-                                            <select className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs text-slate-600" value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})}><option value="">Kategori Seçin</option>{stockCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-                                        </>
-                                    )}
-                                    {modalType === 'surgery' && (
-                                        <>
-                                            <InputField label="Ameliyat Tipi" value={formData.surgeryType} onChange={v => setFormData({...formData, surgeryType: v})} />
-                                            <InputField label="Tarih" value={formData.date} onChange={v => setFormData({...formData, date: v})} />
-                                            <select className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs text-slate-600" value={formData.doctorId} onChange={e => setFormData({...formData, doctorId: e.target.value})}><option value="">Hekim</option>{doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
-                                        </>
-                                    )}
-                                </div>
-                                <div className="p-6 bg-slate-50 flex gap-2">
-                                    <button onClick={() => setShowModal(false)} className="flex-1 py-3 bg-white border rounded-xl font-bold text-xs text-slate-400">İptal</button>
-                                    <button onClick={handleSave} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl text-xs shadow-lg">KAYDET</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         };
 
-        const InputField = ({ label, value, onChange }) => (
-            <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">{label}</label>
-                <input type="text" className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs outline-none focus:border-blue-500" value={value || ''} onChange={e => onChange(e.target.value)} />
-            </div>
-        );
-
-        const StatCard = ({ title, value, icon, color }) => {
-            const colors = { blue: 'bg-blue-500/10 text-blue-500', purple: 'bg-purple-500/10 text-purple-500', orange: 'bg-orange-500/10 text-orange-500', emerald: 'bg-emerald-500/10 text-emerald-500' };
-            return (
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
-                    <div><p className="text-slate-400 text-[10px] font-black uppercase mb-1">{title}</p><h3 className="text-2xl font-black text-slate-800 tracking-tighter">{value}</h3></div>
-                    <div className={`${colors[color]} p-3 rounded-xl`}><Icon name={icon} size={24} /></div>
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+        // EN ALT YARDIMCI BİLEŞENLER VE MODAL TASARIMLARI BİR SONRAKİ PARÇADA TAMAMLANACAK...
