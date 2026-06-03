@@ -66,7 +66,8 @@
             const [regionForm, setRegionForm] = useState({ name: '' });
             const [newNoteText, setNewNoteText] = useState('');
             
-            // Mail Hatırlatıcı State'leri
+            // Düzenleme (Edit) takibi için yeni durumlar
+            const [editingNoteId, setEditingNoteId] = useState(null);
             const [reminderDate, setReminderDate] = useState('');
             const [reminderEmail, setReminderEmail] = useState('');
 
@@ -91,7 +92,7 @@
                 const newDoc = {
                     id: 'doc-' + Date.now(),
                     ...doctorForm,
-                    notes: doctorForm.note ? [{ id: 'n-' + Date.now(), text: doctorForm.note, date: new Date().toLocaleString('tr-TR') }] : []
+                    notes: doctorForm.note ? [{ id: 'n-' + Date.now(), text: doctorForm.note, rawText: doctorForm.note, date: new Date().toLocaleString('tr-TR') }] : []
                 };
                 delete newDoc.note;
                 setDoctors([newDoc, ...doctors]);
@@ -107,10 +108,10 @@
                 setRegionForm({ name: '' });
             };
 
-            const handleAddNote = (docId) => {
+            // Not Ekleme ve Güncelleme (Düzenleme) Fonksiyonu
+            const handleSaveNote = (docId) => {
                 if (!newNoteText.trim()) return;
                 
-                // Eğer mail hatırlatıcı kurulduysa bunu notun içine işle ve simüle et
                 let reminderInfo = "";
                 if (reminderDate && reminderEmail) {
                     reminderInfo = ` [M-Hatırlatıcı: ${reminderDate} tarihinde ${reminderEmail} adresine gönderilecek]`;
@@ -119,28 +120,55 @@
 
                 const updated = doctors.map(doc => {
                     if (doc.id === docId) {
-                        return { 
-                            ...doc, 
-                            notes: [{ 
+                        let newNotesList = [...doc.notes];
+                        
+                        if (editingNoteId) {
+                            // Eğer düzenleme modundaysak mevcut notu güncelle
+                            newNotesList = newNotesList.map(n => {
+                                if (n.id === editingNoteId) {
+                                    return { 
+                                        ...n, 
+                                        text: newNoteText + reminderInfo, 
+                                        rawText: newNoteText,
+                                        emailReminder: reminderEmail || null,
+                                        emailDate: reminderDate || null
+                                    };
+                                }
+                                return n;
+                            });
+                        } else {
+                            // Düzenleme modunda değilsek yeni sıfır not ekle
+                            newNotesList = [{ 
                                 id: 'n-' + Date.now(), 
                                 text: newNoteText + reminderInfo, 
                                 date: new Date().toLocaleString('tr-TR'),
                                 rawText: newNoteText,
                                 emailReminder: reminderEmail || null,
                                 emailDate: reminderDate || null
-                            }, ...doc.notes] 
-                        };
+                            }, ...newNotesList];
+                        }
+
+                        return { ...doc, notes: newNotesList };
                     }
                     return doc;
                 });
+
                 setDoctors(updated);
                 setNewNoteText('');
                 setReminderDate('');
                 setReminderEmail('');
+                setEditingNoteId(null); // Düzenleme modundan çık
                 setSelectedDoctor(updated.find(d => d.id === docId));
             };
 
-            // SEÇİLİ HEKİMİN BAĞLI NOTUNU SİLME FONKSİYONU
+            // Notu Düzenleme Moduna Alma Komutu
+            const handleStartEditNote = (note) => {
+                setEditingNoteId(note.id);
+                setNewNoteText(note.rawText || note.text.split(" [M-Hatırlatıcı:")[0]);
+                setReminderDate(note.emailDate || '');
+                setReminderEmail(note.emailReminder || '');
+            };
+
             const handleDeleteNote = (docId, noteId) => {
                 if (!confirm("Bu ziyaret notunu günlükten tamamen silmek istediğinize emin misiniz?")) return;
                 const updated = doctors.map(doc => {
@@ -150,6 +178,7 @@
                     return doc;
                 });
                 setDoctors(updated);
+                if (editingNoteId === noteId) { setEditingNoteId(null); setNewNoteText(''); setReminderDate(''); setReminderEmail(''); }
                 setSelectedDoctor(updated.find(d => d.id === docId));
             };
 
@@ -159,11 +188,22 @@
                 }
             };
 
+            // Türkçe Karakter Uyumlu Büyük Küçük Harf Araması (Case-Insensitive)
+            const cleanTurkish = (str) => {
+                return String(str)
+                    .toLocaleLowerCase('tr-TR')
+                    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
+                    .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c');
+            };
+
             const filteredDoctors = useMemo(() => {
                 return doctors.filter(doc => {
                     const matchesRegion = activeRegion === 'all' || doc.regionId === activeRegion;
-                    const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase()) || (doc.clinic && doc.clinic.toLowerCase().includes(searchTerm.toLowerCase()));
-                    return matchesRegion && matchesSearch;
+                    
+                    const searchTarget = cleanTurkish(doc.name) + " " + cleanTurkish(doc.clinic || '');
+                    const searchWord = cleanTurkish(searchTerm);
+                    
+                    return matchesRegion && searchTarget.includes(searchWord);
                 });
             }, [doctors, activeRegion, searchTerm]);
 
@@ -217,13 +257,13 @@
                                 <h2 className="text-2xl font-extrabold text-slate-800">{activeRegion === 'all' ? 'Tüm Portföy' : regions.find(r => r.id === activeRegion)?.name}</h2>
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Hekim Kartları & Saha Notları</p>
                             </div>
-                            <button onClick={() => { setModalType('doctor'); setShowModal(true); }} className="px-5 py-3 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg w-full sm:w-auto hover:bg-blue-700">
+                            <button onClick={() => { setModalType('doctor'); setDoctorForm({ name: '', phone: '', clinic: '', regionId: activeRegion === 'all' ? '' : activeRegion, note: '' }); setShowModal(true); }} className="px-5 py-3 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg w-full sm:w-auto hover:bg-blue-700">
                                 + Yeni Hekim Ekle
                             </button>
                         </header>
 
                         <div className="mb-6 relative">
-                            <input type="text" placeholder="Hekim adı veya klinik aratın..." className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm shadow-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
+                            <input type="text" placeholder="Hekim adı veya klinik aratın (büyük/küçük harf fark etmez)..." className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm shadow-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
                             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" size={20} /></div>
                         </div>
 
@@ -244,7 +284,7 @@
                                         </div>
                                     </div>
                                     <div className="flex gap-2 mt-4">
-                                        <button onClick={() => setSelectedDoctor(doc)} className="flex-1 py-2.5 bg-slate-900 text-white font-bold text-xs uppercase rounded-xl hover:bg-slate-800">Detay & Notlar ({doc.notes?.length || 0})</button>
+                                        <button onClick={() => { setSelectedDoctor(doc); setEditingNoteId(null); setNewNoteText(''); setReminderDate(''); setReminderEmail(''); }} className="flex-1 py-2.5 bg-slate-900 text-white font-bold text-xs uppercase rounded-xl hover:bg-slate-800">Detay & Notlar ({doc.notes?.length || 0})</button>
                                         <button onClick={() => handleDeleteDoctor(doc.id)} className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100"><Icon name="trash-2" size={16}/></button>
                                     </div>
                                 </div>
@@ -252,7 +292,7 @@
                         </div>
                     </main>
 
-                    {/* MODAL: Hekim Detay / Günlük Notu Ekleme ve Not Silme Ekranı */}
+                    {/* MODAL: Hekim Detay / Günlük Notu Ekleme, Düzenleme ve Silme Ekranı */}
                     {selectedDoctor && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden p-8 animate-in">
@@ -261,10 +301,12 @@
                                     <button onClick={() => setSelectedDoctor(null)} className="p-2 border rounded-xl hover:bg-slate-100"><Icon name="x" size={18} /></button>
                                 </div>
                                 <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
-                                    <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border">
-                                        <textarea placeholder="Yeni ziyaret notunu buraya girin..." className="w-full p-3 border rounded-xl text-xs font-bold h-20 outline-none bg-white focus:border-blue-500" value={newNoteText} onChange={e => setNewNoteText(e.target.value)} />
+                                    <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-blue-100">
+                                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-wider ml-1">
+                                            {editingNoteId ? '⚠️ SEÇİLİ NOTU DÜZENLİYORSUNUZ' : '📝 YENİ ZİYARET NOTU GİRİŞİ'}
+                                        </p>
+                                        <textarea placeholder="Ziyaret notunu buraya girin..." className="w-full p-3 border rounded-xl text-xs font-bold h-20 outline-none bg-white focus:border-blue-500" value={newNoteText} onChange={e => setNewNoteText(e.target.value)} />
                                         
-                                        {/* E-Posta Hatırlatıcı Girişleri */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                             <div>
                                                 <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 ml-1">E-Posta Hatırlatma Tarihi</label>
@@ -276,23 +318,39 @@
                                             </div>
                                         </div>
 
-                                        <button onClick={() => handleAddNote(selectedDoctor.id)} className="w-full py-2.5 bg-blue-600 text-white font-black text-xs uppercase rounded-xl shadow-md shadow-blue-500/10">Notu ve Hatırlatıcıyı Kaydet</button>
+                                        <div className="flex gap-2">
+                                            {editingNoteId && (
+                                                <button type="button" onClick={() => { setEditingNoteId(null); setNewNoteText(''); setReminderDate(''); setReminderEmail(''); }} className="py-2.5 px-4 bg-white border text-slate-500 font-bold text-xs uppercase rounded-xl">İptal</button>
+                                            )}
+                                            <button onClick={() => handleSaveNote(selectedDoctor.id)} className="flex-1 py-2.5 bg-blue-600 text-white font-black text-xs uppercase rounded-xl shadow-md">
+                                                {editingNoteId ? 'Notu Güncelle' : 'Notu ve Hatırlatıcıyı Kaydet'}
+                                            </button>
+                                        </div>
                                     </div>
                                     
                                     <div className="space-y-2 pt-4 border-t">
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Geçmiş Notlar</p>
                                         {selectedDoctor.notes?.map(n => (
-                                            <div key={n.id} className="bg-slate-50 p-4 rounded-2xl border relative group/note">
-                                                {/* DÜZELTME/SİLME BUTONU: Notu listeden siler */}
-                                                <button 
-                                                    onClick={() => handleDeleteNote(selectedDoctor.id, n.id)} 
-                                                    className="absolute right-3 top-3 text-slate-300 hover:text-red-500 transition-colors"
-                                                    title="Bu notu günlükten sil"
-                                                >
-                                                    <Icon name="trash-2" size={14} />
-                                                </button>
+                                            <div key={n.id} className="bg-slate-50 p-4 rounded-2xl border relative group/note hover:border-slate-300 transition-all">
+                                                <div className="absolute right-3 top-3 flex gap-2">
+                                                    {/* DÜZENLEME (KALEM) BUTONU: Notu yukarıdaki forma taşır */}
+                                                    <button 
+                                                        onClick={() => handleStartEditNote(n)}
+                                                        className={`transition-colors ${editingNoteId === n.id ? 'text-blue-600' : 'text-slate-300 hover:text-blue-500'}`}
+                                                        title="Bu notu düzenle"
+                                                    >
+                                                        <Icon name="pencil" size={14} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteNote(selectedDoctor.id, n.id)} 
+                                                        className="text-slate-300 hover:text-red-500 transition-colors"
+                                                        title="Bu notu günlükten sil"
+                                                    >
+                                                        <Icon name="trash-2" size={14} />
+                                                    </button>
+                                                </div>
                                                 <span className="text-[9px] font-black text-blue-500 block">{n.date}</span>
-                                                <p className="text-xs font-bold text-slate-700 mt-1.5 pr-6 leading-relaxed">"{n.rawText || n.text}"</p>
+                                                <p className="text-xs font-bold text-slate-700 mt-1.5 pr-12 leading-relaxed">"{n.rawText || n.text}"</p>
                                                 {n.emailReminder && (
                                                     <span className="inline-flex items-center gap-1 mt-2 text-[9px] font-black bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded">
                                                         📬 {n.emailDate} tarihinde {n.emailReminder} adresine hatırlatılacak
