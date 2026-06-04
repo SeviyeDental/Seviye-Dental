@@ -74,7 +74,6 @@
             const [selectedDoctor, setSelectedDoctor] = useState(null);
             const [draggedRegionId, setDraggedRegionId] = useState(null);
 
-            // Form Durumları (visitToday alanı eklendi)
             const [doctorForm, setDoctorForm] = useState({ name: '', phone: '', clinic: '', regionId: '', note: '', visitToday: false });
             const [regionForm, setRegionForm] = useState({ name: '' });
             const [userForm, setUserForm] = useState({ username: '', password: '', name: '' });
@@ -215,12 +214,9 @@
                 updated.forEach((r, idx) => { updateDoc(doc(window.db, 'shared_regions', r.id), { order: idx }); });
             };
 
-            // Hızlı Bugün Listesine Ekleme/Çıkarma Fonksiyonu
             const toggleTodayVisit = async (docItem) => {
                 const { doc, updateDoc } = window.FirebaseMethods;
-                await updateDoc(doc(window.db, 'shared_doctors', docItem.id), {
-                    visitToday: !docItem.visitToday
-                });
+                await updateDoc(doc(window.db, 'shared_doctors', docItem.id), { visitToday: !docItem.visitToday });
             };
 
             const handleAddDoctor = async (e) => {
@@ -238,7 +234,7 @@
                     });
                 }
                 setShowModal(false);
-                setDoctorForm({ name: '', phone: '', clinic: '', regionId: '', note: '' });
+                setDoctorForm({ name: '', phone: '', clinic: '', regionId: '', note: '', visitToday: false });
             };
 
             const handleAddRegion = async (e) => {
@@ -314,11 +310,16 @@
 
             const cleanTurkish = (str) => String(str).toLocaleLowerCase('tr-TR').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c');
 
+            // Akıllı Süzgeç: Bugün Gezilecekler ve AKŞAM RAPORU Listesi
             const filteredDoctors = useMemo(() => {
+                const todayStr = new Date().toLocaleDateString('tr-TR');
+                
                 return doctors.filter(doc => {
+                    // 📊 AKŞAM RAPORU SEÇENEĞİ: Sadece bugün not girilen hekimleri süzme
+                    if (activeRegion === 'report_panel') {
+                        return doctorVisits.some(v => v.doctorId === doc.id && v.date && v.date.split(' ')[0] === todayStr);
+                    }
                     if (activeRegion === 'today_panel') {
-                        // Gelişmiş Filtre: Hem manuel işaretlenenler Hem de hatırlatma günü bugün olanlar listelenir
-                        const todayStr = new Date().toLocaleDateString('tr-TR');
                         const hasTodayReminder = doctorVisits.filter(v => v.doctorId === doc.id).some(v => v.emailDate && v.emailDate.split(' ')[0] === todayStr);
                         return doc.visitToday || hasTodayReminder;
                     }
@@ -361,9 +362,13 @@
                         </div>
 
                         <div className="space-y-1 overflow-y-auto flex-1 pr-1 custom-scrollbar">
-                            <button onClick={() => setActiveRegion('today_panel')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm mb-4 transition-all ${activeRegion === 'today_panel' ? 'bg-amber-500 text-white shadow-lg' : 'bg-slate-800/60 text-amber-400 hover:bg-slate-800'}`}>
+                            <button onClick={() => setActiveRegion('today_panel')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeRegion === 'today_panel' ? 'bg-amber-500 text-white shadow-lg' : 'bg-slate-800/40 text-amber-400 hover:bg-slate-800'}`}>
                                 <span className="flex items-center gap-3"><Icon name="calendar-check" size={18} /> Bugün Gezilecekler</span>
-                                <span className="text-xs bg-slate-900 text-amber-400 px-2 py-0.5 rounded-md font-black">Rota</span>
+                            </button>
+
+                            {/* 📊 YENİ EKLEME: AKŞAM RAPORU BUTONU */}
+                            <button onClick={() => setActiveRegion('report_panel')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm mb-4 transition-all ${activeRegion === 'report_panel' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-800/40 text-emerald-400 hover:bg-slate-800'}`}>
+                                <span className="flex items-center gap-3"><Icon name="file-text" size={18} /> Akşam Saha Raporu</span>
                             </button>
 
                             <div className="flex items-center justify-between mb-2 px-2">
@@ -406,7 +411,7 @@
                         <div className="mobile-bottom-nav">
                             <button onClick={() => setActiveRegion('all')} className={`flex-1 flex flex-col items-center gap-1 p-2 rounded-xl text-slate-400 ${activeRegion==='all'?'text-blue-500':''}`}><Icon name="globe" size={18}/> <span className="text-[9px]">Tümü</span></button>
                             <button onClick={() => setActiveRegion('today_panel')} className={`flex-1 flex flex-col items-center gap-1 p-2 rounded-xl text-slate-400 ${activeRegion==='today_panel'?'text-amber-500':''}`}><Icon name="calendar-check" size={18}/> <span className="text-[9px]">Bugün</span></button>
-                            <button onClick={() => setActiveRegion('users_panel')} className={`flex-1 flex flex-col items-center gap-1 p-2 rounded-xl text-slate-400 ${activeRegion==='users_panel'?'text-blue-500':''}`}><Icon name="settings" size={18}/> <span className="text-[9px]">Ekip</span></button>
+                            <button onClick={() => setActiveRegion('report_panel')} className={`flex-1 flex flex-col items-center gap-1 p-2 rounded-xl text-slate-400 ${activeRegion==='report_panel'?'text-emerald-500':''}`}><Icon name="file-text" size={18}/> <span className="text-[9px]">Rapor</span></button>
                         </div>
                         <button onClick={handleLogoutAction} className="mobile-logout-btn text-red-500 font-black"><Icon name="log-out" size={18} /><span className="text-[9px]">ÇIKIŞ</span></button>
                     </div>
@@ -419,9 +424,7 @@
                                         <h2 className="text-2xl font-extrabold text-slate-800">Saha Ekibi & Şifre Yönetimi</h2>
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Yeni Temsilci Hesabı Oluşturma</p>
                                     </div>
-                                    <button onClick={() => { setModalType('user'); setShowModal(true); }} className="px-5 py-3 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg hover:bg-blue-700">
-                                        + Yeni Temsilci Ekle
-                                    </button>
+                                    <button onClick={() => { setModalType('user'); setShowModal(true); }} className="px-5 py-3 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg hover:bg-blue-700">+ Yeni Temsilci Ekle</button>
                                 </header>
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                                     {systemUsers.map(u => (
@@ -437,18 +440,73 @@
                                     ))}
                                 </div>
                             </div>
+                        ) : activeRegion === 'report_panel' ? (
+                            /* 📊 YENİ: AKŞAM SAHA RAPORU GÖRÜNÜMÜ */
+                            <div className="space-y-6 animate-in">
+                                <header className="mb-6">
+                                    <h2 className="text-2xl font-extrabold text-slate-800">📋 Bugünün Saha Ziyaret Raporu</h2>
+                                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mt-1">Bugün ({new Date().toLocaleDateString('tr-TR')}) Not Girilen Hekimler Listesi</p>
+                                </header>
+                                <div className="bg-white rounded-[2rem] border p-6 shadow-sm overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="border-b text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                                    <th className="py-4 px-4">Hekim Adı</th>
+                                                    <th className="py-4 px-4">Klinik / Hastane</th>
+                                                    <th className="py-4 px-4">Bölge</th>
+                                                    <th className="py-4 px-4">Bugün Girilen Ziyaret Notu</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y text-xs font-bold text-slate-700">
+                                                {filteredDoctors.map(doc => {
+                                                    const todayStr = new Date().toLocaleDateString('tr-TR');
+                                                    const todayVisits = doctorVisits.filter(v => v.doctorId === doc.id && v.date && v.date.split(' ')[0] === todayStr);
+                                                    return todayVisits.map((v, index) => (
+                                                        <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
+                                                            {index === 0 ? (
+                                                                <>
+                                                                    <td className="py-4 px-4 font-extrabold text-slate-900 text-sm" rowSpan={todayVisits.length}>{doc.name}</td>
+                                                                    <td className="py-4 px-4 text-slate-500" rowSpan={todayVisits.length}>{doc.clinic || '-'}</td>
+                                                                    <td className="py-4 px-4" rowSpan={todayVisits.length}>
+                                                                        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-black">{regions.find(r => r.id === doc.regionId)?.name}</span>
+                                                                    </td>
+                                                                </>
+                                                            ) : null}
+                                                            <td className="py-4 px-4 border-l bg-emerald-50/30">
+                                                                <p className="text-slate-800">"{v.rawText || v.text}"</p>
+                                                                <div className="flex gap-2 mt-1 text-[9px] font-black">
+                                                                    <span className="text-slate-400">⏱️ {v.date.split(' ')[1]}</span>
+                                                                    <span className="text-blue-600">👤 Yazan: {v.user || 'Sistem'}</span>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ));
+                                                })}
+                                                {filteredDoctors.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan="4" className="text-center py-12 text-slate-400 italic font-medium">Bugün henüz hiçbir hekime ziyaret notu girilmemiş.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                         ) : (
+                            /* Standart Görünüm */
                             <>
-                                <table className="w-full mb-4"><tbody><tr><td>
-                                    <h2 className="text-2xl font-extrabold text-slate-800">
-                                        {activeRegion === 'all' ? 'Tüm Portföy' : activeRegion === 'today_panel' ? '📅 Bugün Ziyaret Edilecek Hekimler' : regions.find(r => r.id === activeRegion)?.name}
-                                    </h2>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Saha İletişim Havuzu</p>
-                                </td><td className="text-right">
-                                    <button onClick={() => { setModalType('doctor'); setDoctorForm({ name: '', phone: '', clinic: '', regionId: ['all', 'today_panel'].includes(activeRegion) ? '' : activeRegion, note: '', visitToday: false }); setShowModal(true); }} className="px-5 py-3 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg hover:bg-blue-700">
+                                <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                                    <div>
+                                        <h2 className="text-2xl font-extrabold text-slate-800">
+                                            {activeRegion === 'all' ? 'Tüm Portföy' : activeRegion === 'today_panel' ? '📅 Bugün Ziyaret Edilecek Hekimler' : regions.find(r => r.id === activeRegion)?.name}
+                                        </h2>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Saha İletişim Havuzu</p>
+                                    </div>
+                                    <button onClick={() => { setModalType('doctor'); setDoctorForm({ name: '', phone: '', clinic: '', regionId: ['all', 'today_panel'].includes(activeRegion) ? '' : activeRegion, note: '', visitToday: false }); setShowModal(true); }} className="px-5 py-3 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg w-full sm:w-auto hover:bg-blue-700">
                                         + Yeni Hekim Ekle
                                     </button>
-                                </td></tr></tbody></table>
+                                </header>
 
                                 <div className="mb-6 relative">
                                     <input type="text" placeholder="Hekim adı veya klinik aratın..." className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm shadow-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
@@ -463,12 +521,7 @@
                                                 <div>
                                                     <div className="flex justify-between items-start mb-4">
                                                         <div className="bg-blue-50 text-blue-600 p-3 rounded-2xl"><Icon name="user-round" size={24} /></div>
-                                                        
-                                                        {/* ➕ YENİ: KART ÜZERİNDEKİ HIZLI LİSTEYE EKLE/ÇIKAR BUTONU */}
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); toggleTodayVisit(doc); }}
-                                                            className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md transition-all ${doc.visitToday ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-amber-100'}`}
-                                                        >
+                                                        <button onClick={(e) => { e.stopPropagation(); toggleTodayVisit(doc); }} className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md transition-all ${doc.visitToday ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-amber-100'}`}>
                                                             {doc.visitToday ? '🌟 Bugün Listemde' : '➕ Bugüne Ekle'}
                                                         </button>
                                                     </div>
@@ -525,7 +578,7 @@
                                             <div key={n.id} className="bg-slate-50 p-4 rounded-2xl border relative group/note">
                                                 <div className="absolute right-3 top-3 flex gap-2">
                                                     <button onClick={() => handleStartEditNote(n)} className="text-slate-300 hover:text-blue-500"><Icon name="pencil" size={14} /></button>
-                                                    <button onClick={() => handleDeleteNote(n.id)} className="text-slate-300 hover:text-red-500 transition-colors"><Icon name="trash-2" size={14} /></button>
+                                                    <button onClick={() => handleDeleteNote(n.id)} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={14} /></button>
                                                 </div>
                                                 <span className="text-[9px] font-black text-blue-500 block">{n.date}</span>
                                                 <p className="text-xs font-bold text-slate-700 mt-1.5 pr-12 leading-relaxed">"{n.rawText || n.text}"</p>
@@ -544,7 +597,6 @@
                                     <h3 className="text-lg font-extrabold text-slate-900 uppercase">{modalType === 'doctor' ? 'Yeni Hekim Ekle' : modalType === 'region' ? 'Yeni Rota Ekle' : 'Yeni Temsilci Ekle'}</h3>
                                     <button onClick={() => setShowModal(false)} className="p-2 border rounded-xl"><Icon name="x" size={16} /></button>
                                 </div>
-                                
                                 {modalType === 'region' && (
                                     <form onSubmit={handleAddRegion} className="space-y-4">
                                         <input type="text" required placeholder="Rota Adı" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={regionForm.name} onChange={e => setRegionForm({name: e.target.value})} />
@@ -554,16 +606,13 @@
                                 {modalType === 'doctor' && (
                                     <form onSubmit={handleAddDoctor} className="space-y-4">
                                         <input type="text" required placeholder="Hekim Adı Soyadı" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={doctorForm.name} onChange={e => setDoctorForm({...doctorForm, name: e.target.value})} />
-                                        <input type="text" placeholder="Klinik / Hastane" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={doctorForm.clinic} onChange={e => setDoctorForm({...doctorForm, clinic: d.target.value})} />
+                                        <input type="text" placeholder="Klinik / Hastane" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={doctorForm.clinic} onChange={e => setDoctorForm({...doctorForm, clinic: e.target.value})} />
                                         <input type="text" placeholder="Telefon" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={doctorForm.phone} onChange={e => setDoctorForm({...doctorForm, phone: e.target.value})} />
                                         <select required className="w-full p-4 border rounded-xl font-bold text-sm text-slate-600 outline-none bg-slate-50" value={doctorForm.regionId} onChange={e => setDoctorForm({...doctorForm, regionId: e.target.value})}><option value="">Bölge / Rota Seçin...</option>{regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
-                                        
-                                        {/* ➕ YENİ: HEKİM EKLEME EKRANINDAKİ ONAY KUTUSU (TİK) */}
                                         <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border">
                                             <input type="checkbox" id="visitTodayCheck" className="w-4 h-4 text-blue-600" checked={doctorForm.visitToday} onChange={e => setDoctorForm({...doctorForm, visitToday: e.target.checked})} />
                                             <label htmlFor="visitTodayCheck" className="text-xs font-bold text-slate-700 cursor-pointer select-none">Bu hekimi doğrudan "Bugün Gezilecekler" listeme ekle</label>
                                         </div>
-
                                         <textarea placeholder="İlk ziyaret notu..." className="w-full p-4 border rounded-xl font-bold text-xs h-16 outline-none resize-none bg-slate-50" value={doctorForm.note} onChange={e => setDoctorForm({...doctorForm, note: e.target.value})} />
                                         <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black text-xs uppercase rounded-xl">Hekimi Ekle</button>
                                     </form>
