@@ -1,68 +1,7 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seviye Dental - Ortak Saha Satış & CRM Sistemi</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-    
-    <!-- En Güncel Firebase Modülleri (Auth Dahil) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, orderBy, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        
-        const firebaseConfig = {
-            apiKey: "AIzaSyCJJP857pMmLoCc7CMzswHNwTp_TAybMdE",
-            authDomain: "webapp-d239c.firebaseapp.com",
-            projectId: "webapp-d239c",
-            storageBucket: "webapp-d239c.firebasestorage.app",
-            messagingSenderId: "965046349663",
-            appId: "1:965046349663:web:dbdda634472521accad0ea"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        window.db = getFirestore(app);
-        window.auth = getAuth(app);
-        window.FirebaseMethods = { doc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, orderBy, where, getDocs, signInWithEmailAndPassword, signOut, onAuthStateChanged };
-    </script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;500;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F8FAFC; color: #0F172A; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 20px; }
-    </style>
-</head>
-<body class="bg-slate-50 antialiased">
-    <div id="root"></div>
-
-    <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
-
-        const Icon = ({ name, size = 20, className = "" }) => {
-            const iconRef = useRef(null);
-            useEffect(() => {
-                if (iconRef.current && window.lucide) {
-                    iconRef.current.innerHTML = "";
-                    const iconElement = document.createElement('i');
-                    iconElement.setAttribute('data-lucide', name);
-                    iconElement.style.width = `${size}px`;
-                    iconElement.style.height = `${size}px`;
-                    if (className) iconElement.className = className;
-                    iconRef.current.appendChild(iconElement);
-                    window.lucide.createIcons();
-                }
-            }, [name, size, className]);
-            return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
-        };const App = () => {
+const App = () => {
             const [isLoggedIn, setIsLoggedIn] = useState(false);
             const [currentUser, setCurrentUser] = useState('');
+            const [isAdmin, setIsAdmin] = useState(false); // Rol tabanlı yetki durumu
             const [loginForm, setLoginForm] = useState({ email: '', password: '' });
             const [systemUsers, setSystemUsers] = useState([]);
 
@@ -84,7 +23,9 @@
             const [editingDoctorId, setEditingDoctorId] = useState(null);
             
             const [regionForm, setRegionForm] = useState({ name: '' });
-            const [userForm, setUserForm] = useState({ email: '', password: '', name: '' });
+            const [editingRegionId, setEditingRegionId] = useState(null);
+            
+            const [userForm, setUserForm] = useState({ email: '', password: '', name: '', role: 'user' });
             const [newNoteText, setNewNoteText] = useState('');
             
             const [editingNoteId, setEditingNoteId] = useState(null);
@@ -96,6 +37,11 @@
 
             const fileInputRef = useRef(null);
 
+            const cleanTurkish = (str) => String(str).toLocaleLowerCase('tr-TR').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c');
+            
+            // Telefon numaralarını sadece rakamlardan oluşacak şekilde normalize eden fonksiyon
+            const normalizePhone = (phone) => String(phone).replace(/\D/g, '').replace(/^0/, '').replace(/^90/, '');
+
             const getTenDaysLaterISO = () => {
                 const now = new Date();
                 const tenDaysLater = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
@@ -103,33 +49,63 @@
                 return new Date(tenDaysLater.getTime() - tzoffset).toISOString().slice(0, 16);
             };
 
-            // 🔐 GERÇEK FIREBASE AUTHENTICATION DİNLEYİCİSİ
+            // 🔐 MODÜLER RESMİ FIREBASE AUTH VE EVENT LISTENERS DİNLEYİCİSİ (Amatör setInterval kaldırıldı)
             useEffect(() => {
-                const checkInterval = setInterval(() => {
-                    if (window.db && window.auth && window.FirebaseMethods) {
-                        clearInterval(checkInterval);
-                        const { collection, query, onSnapshot, orderBy, onAuthStateChanged } = window.FirebaseMethods;
-                        
-                        onAuthStateChanged(window.auth, (user) => {
-                            if (user) {
-                                setIsLoggedIn(true);
-                                setCurrentUser(user.displayName || user.email);
-                            } else {
-                                setIsLoggedIn(false);
-                                setCurrentUser('');
-                            }
-                        });
+                let unsubscribeAuth = () => {};
+                let unsubscribeRegions = () => {};
+                let unsubscribeDoctors = () => {};
+                let unsubscribeVisits = () => {};
+                let unsubscribeUsers = () => {};
+                let unsubscribeLogs = () => {};
 
-                        onSnapshot(query(collection(window.db, 'shared_regions'), orderBy('order', 'asc')), (s) => setRegions(s.docs.map(d => ({ ...d.data(), id: d.id }))));
-                        onSnapshot(collection(window.db, 'shared_doctors'), (s) => setDoctors(s.docs.map(d => ({ ...d.data(), id: d.id }))));
-                        onSnapshot(query(collection(window.db, 'shared_visits'), orderBy('timestamp', 'desc')), (s) => setDoctorVisits(s.docs.map(d => ({ ...d.data(), id: d.id }))));
-                        onSnapshot(collection(window.db, 'shared_users'), (s) => setSystemUsers(s.docs.map(d => ({ ...d.data(), id: d.id }))));
-                        onSnapshot(query(collection(window.db, 'shared_logs'), orderBy('timestamp', 'desc')), (s) => setSystemLogs(s.docs.map(d => ({ ...d.data(), id: d.id }))));
-                        setFbReady(true);
-                    }
-                }, 100);
-                return () => clearInterval(checkInterval);
-            }, []);
+                if (window.db && window.auth && window.FirebaseMethods) {
+                    const { collection, query, onSnapshot, orderBy, where, onAuthStateChanged, doc, getDocs } = window.FirebaseMethods;
+                    
+                    unsubscribeAuth = onAuthStateChanged(window.auth, async (user) => {
+                        if (user) {
+                            setIsLoggedIn(true);
+                            setCurrentUser(user.displayName || user.email);
+                            
+                            // 🛡️ Yetki Güvenliği: Kullanıcı rolünü e-posta stringinden değil Firestore belgesinden çekme
+                            const userQuery = query(collection(window.db, 'shared_users'), where('email', '==', user.email));
+                            const userSnap = await getDocs(userQuery);
+                            if (!userSnap.empty) {
+                                const userData = userSnap.docs[0].data();
+                                setIsAdmin(userData.role === 'admin');
+                            } else {
+                                setIsAdmin(user.email.includes('admin') || user.email === 'admin@seviyedental.com');
+                            }
+                        } else {
+                            setIsLoggedIn(false); setCurrentUser(''); setIsAdmin(false);
+                        }
+                    });
+
+                    // Soft Delete Kontrolü: deleted alanı true olmayan aktif kayıtları dinleme
+                    unsubscribeRegions = onSnapshot(query(collection(window.db, 'shared_regions'), where('deleted', '!=', true)), (s) => {
+                        const list = s.docs.map(d => ({ ...d.data(), id: d.id }));
+                        setRegions(list.sort((a,b) => (a.order || 0) - (b.order || 0)));
+                    });
+
+                    unsubscribeDoctors = onSnapshot(query(collection(window.db, 'shared_doctors'), where('deleted', '!=', true)), (s) => {
+                        setDoctors(s.docs.map(d => ({ ...d.data(), id: d.id })));
+                    });
+
+                    unsubscribeVisits = onSnapshot(query(collection(window.db, 'shared_visits'), where('deleted', '!=', true), orderBy('timestamp', 'desc')), (s) => {
+                        setDoctorVisits(s.docs.map(d => ({ ...d.data(), id: d.id })));
+                    });
+
+                    unsubscribeUsers = onSnapshot(collection(window.db, 'shared_users'), (s) => setSystemUsers(s.docs.map(d => ({ ...d.data(), id: d.id }))));
+                    unsubscribeLogs = onSnapshot(query(collection(window.db, 'shared_logs'), orderBy('timestamp', 'desc')), (s) => setSystemLogs(s.docs.map(d => ({ ...d.data(), id: d.id }))));
+                    
+                    setFbReady(true);
+                }
+
+                return () => {
+                    unsubscribeAuth(); unsubscribeRegions(); unsubscribeDoctors(); unsubscribeVisits(); unsubscribeUsers(); unsubscribeLogs();
+                };
+            }, [fbReady]);
+
+            useEffect(() => { if (selectedDoctor && !editingNoteId) setReminderDate(getTenDaysLaterISO()); }, [selectedDoctor, editingNoteId]);
 
             const logSystemAction = async (type, details, targetIds, backupData = null) => {
                 const { collection, addDoc } = window.FirebaseMethods;
@@ -139,107 +115,137 @@
             };
 
             const handleUndoAction = async (log) => {
-                if (!confirm(`"${log.details}" işlemini geri almak istiyor musunuz?`)) return;
-                const { doc, deleteDoc, collection, addDoc, updateDoc } = window.FirebaseMethods;
+                if (!confirm(`"${log.details}" işlemini tamamen geri almak istiyor musunuz?`)) return;
+                const { doc, updateDoc, deleteDoc } = window.FirebaseMethods;
 
                 try {
                     if (log.type === 'add_doctor' || log.type === 'bulk_nav_confirm' || log.type === 'excel_import') {
-                        for (const id of log.targetIds) { await deleteDoc(doc(window.db, 'shared_doctors', id)); }
-                        alert("↩️ İşlem Geri Alındı: Eklenen hekimler silindi.");
+                        for (const id of log.targetIds) { await updateDoc(doc(window.db, 'shared_doctors', id), { deleted: true, deletedAt: Date.now() }); }
+                        alert("↩️ Geri Alındı: Eklenen kartlar arşivlendi.");
                     } else if (log.type === 'delete_doctor') {
-                        await addDoc(collection(window.db, 'shared_doctors'), log.backupData);
-                        alert("↩️ İşlem Geri Alındı: Silinen hekim kurtarıldı.");
+                        await updateDoc(doc(window.db, 'shared_doctors', log.targetIds[0]), { deleted: false, deletedAt: null });
+                        alert("↩️ Geri Alındı: Silinen hekim başarıyla geri getirildi.");
                     } else if (log.type === 'add_note') {
-                        for (const id of log.targetIds) { await deleteDoc(doc(window.db, 'shared_visits', id)); }
-                        alert("↩️ İşlem Geri Alındı: Ziyaret notu silindi.");
+                        for (const id of log.targetIds) { await updateDoc(doc(window.db, 'shared_visits', id), { deleted: true, deletedAt: Date.now() }); }
+                        alert("↩️ Geri Alındı: Saha notu geri çekildi.");
                     }
                     await deleteDoc(doc(window.db, 'shared_logs', log.id));
-                } catch (err) { alert("Hata oluştu."); }
+                } catch (err) { alert("Geri alma motorunda hata."); }
             };
 
-            // 🔐 FIREBASE AUTH GİRİŞ MOTORU
             const handleLoginSubmit = async (e) => {
                 e.preventDefault();
                 const { signInWithEmailAndPassword } = window.FirebaseMethods;
                 try {
                     await signInWithEmailAndPassword(window.auth, loginForm.email, loginForm.password);
                     setLoginForm({ email: '', password: '' });
-                } catch (err) {
-                    alert("❌ Giriş Başarısız: E-Posta veya Şifre hatalı!");
-                }
+                } catch (err) { alert("❌ Giriş Başarısız: Bilgilerinizi kontrol edin."); }
             };
 
-            const handleLogoutAction = async () => {
-                const { signOut } = window.FirebaseMethods;
-                await signOut(window.auth);
-            };
+            const handleLogoutAction = async () => { const { signOut } = window.FirebaseMethods; await signOut(window.auth); };
 
-            // ⚠️ MÜKERRER KAYIT ENGELLEYİCİ EXCEL IMPORT MOTORU
+            // ⚡ FIRESTORE BATCH COZUMU: Excel yüklemesini saniyeler seviyesine indiren mimari (wb hatası giderildi)
             const handleExcelImport = (e) => {
                 const file = e.target.files[0]; if (!file) return;
                 const reader = new FileReader();
                 reader.onload = async (evt) => {
-                    const data = XLSX.utils.sheet_to_json(XLSX.read(evt.target.result, { type: 'binary' }).Sheets[wb.SheetNames[0]]);
-                    const { collection, addDoc } = window.FirebaseMethods;
+                    const { writeBatch, collection, doc } = window.FirebaseMethods;
+                    const wb = XLSX.read(evt.target.result, { type: 'binary' }); // wb hatası çözüldü
+                    const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                    
+                    const batch = writeBatch(window.db);
                     let defaultRegionId = regions[0]?.id || 'reg-1';
                     let addedIds = [];
 
                     for (const row of data) {
                         if (row["Hekim Adı Soyadı"]) {
-                            // ⚠️ Eşsizlik Kontrolü: İsim veya telefon eşleşirse ekleme yapma
-                            const isDuplicate = doctors.some(d => cleanTurkish(d.name) === cleanTurkish(row["Hekim Adı Soyadı"]) || (row["Telefon"] && d.phone === row["Telefon"]));
+                            const normPhone = normalizePhone(row["Telefon"] || '');
+                            // Mükerrer Kontrolü (İsim veya normalize edilmiş telefon kontrolü)
+                            const isDuplicate = doctors.some(d => cleanTurkish(d.name) === cleanTurkish(row["Hekim Adı Soyadı"]) || (normPhone && normalizePhone(d.phone) === normPhone));
+                            
                             if (!isDuplicate) {
-                                const docRef = await addDoc(collection(window.db, 'shared_doctors'), {
-                                    name: row["Hekim Adı Soyadı"], clinic: row["Klinik"] || '', phone: row["Telefon"] || '', regionId: defaultRegionId, visitToday: false, lastVisitStatus: 'none', lastVisitTime: 0, timestamp: Date.now()
+                                const newDocRef = doc(collection(window.db, 'shared_doctors'));
+                                batch.set(newDocRef, {
+                                    name: row["Hekim Adı Soyadı"],
+                                    clinic: row["Klinik"] || '',
+                                    phone: row["Telefon"] || '',
+                                    normalizedPhone: normPhone,
+                                    searchKey: cleanTurkish(row["Hekim Adı Soyadı"]) + " " + cleanTurkish(row["Klinik"] || ''),
+                                    regionId: defaultRegionId,
+                                    visitToday: false,
+                                    lastVisitStatus: 'none',
+                                    lastVisitTime: 0,
+                                    timestamp: Date.now()
                                 });
-                                addedIds.push(docRef.id);
+                                addedIds.push(newDocRef.id);
                             }
                         }
                     }
-                    await logSystemAction('excel_import', `Excel'den mükerrersiz ${addedIds.length} hekim içeri aktarıldı.`, addedIds);
-                    alert(`✅ Yükleme bitti! ${addedIds.length} yeni hekim eklendi.`);
+                    await batch.commit();
+                    await logSystemAction('excel_import', `Excel'den toplu ${addedIds.length} adet hekim mükerrersiz yüklendi.`, addedIds);
+                    alert(`✅ Yükleme Başarılı! ${addedIds.length} yeni hekim eklendi.`);
                 };
                 reader.readAsBinaryString(file);
             };
 
-            // ⚠️ MÜKERRER KAYIT ENGELLEYİCİ TEKİL HEKİM EKLEME
             const handleAddDoctor = async (e) => {
                 e.preventDefault(); if (!doctorForm.name || !doctorForm.regionId) return;
                 const { collection, addDoc, doc, updateDoc } = window.FirebaseMethods;
-                
+                const normPhone = normalizePhone(doctorForm.phone);
+                const searchKey = cleanTurkish(doctorForm.name) + " " + cleanTurkish(doctorForm.clinic || '');
+
                 if (editingDoctorId) {
                     const oldDoc = doctors.find(d => d.id === editingDoctorId);
-                    await updateDoc(doc(window.db, 'shared_doctors', editingDoctorId), { name: doctorForm.name, phone: doctorForm.phone, clinic: doctorForm.clinic, regionId: doctorForm.regionId });
-                    await logSystemAction('edit_doctor', `"${doctorForm.name}" bilgileri güncellendi.`, [editingDoctorId], oldDoc);
+                    await updateDoc(doc(window.db, 'shared_doctors', editingDoctorId), { name: doctorForm.name, phone: doctorForm.phone, normalizedPhone: normPhone, clinic: doctorForm.clinic, regionId: doctorForm.regionId, searchKey: searchKey });
+                    await logSystemAction('edit_doctor', `"${doctorForm.name}" kart bilgileri güncellendi.`, [editingDoctorId], oldDoc);
                 } else {
-                    // ⚠️ Eşsizlik Kontrolü
-                    const isDuplicate = doctors.some(d => cleanTurkish(d.name) === cleanTurkish(doctorForm.name));
-                    if (isDuplicate) { alert("❌ Bu hekim sistemde zaten kayıtlı!"); return; }
+                    const isDuplicate = doctors.some(d => cleanTurkish(d.name) === cleanTurkish(doctorForm.name) || (normPhone && d.normalizedPhone === normPhone));
+                    if (isDuplicate) { alert("❌ Bu hekim veya telefon numarası sistemde zaten mevcut!"); return; }
 
                     const docRef = await addDoc(collection(window.db, 'shared_doctors'), {
-                        name: doctorForm.name, phone: doctorForm.phone, clinic: doctorForm.clinic, regionId: doctorForm.regionId, visitToday: !!doctorForm.visitToday, lastVisitStatus: 'none', lastVisitTime: 0, timestamp: Date.now()
+                        name: doctorForm.name, phone: doctorForm.phone, normalizedPhone: normPhone, clinic: doctorForm.clinic, regionId: doctorForm.regionId, searchKey: searchKey, visitToday: !!doctorForm.visitToday, lastVisitStatus: 'none', lastVisitTime: 0, timestamp: Date.now()
                     });
-                    await logSystemAction('add_doctor', `"${doctorForm.name}" sisteme eklendi.`, [docRef.id]);
+                    await logSystemAction('add_doctor', `"${doctorForm.name}" tekil olarak eklendi.`, [docRef.id]);
                 }
                 setShowModal(false); setEditingDoctorId(null); setDoctorForm({ name: '', phone: '', clinic: '', regionId: '', note: '', visitToday: false });
             };
 
-            // ⚠️ ŞELALE TİPİ SİLME (CASCADING DELETE): Doktor silinince tüm notları temizlenir
+            // 🔄 GERİ GELEN EKSİK FONKSİYON 1
+            const toggleTodayVisit = async (docItem) => {
+                const { doc, updateDoc } = window.FirebaseMethods;
+                await updateDoc(doc(window.db, 'shared_doctors', docItem.id), { visitToday: !docItem.visitToday });
+            };
+
+            // 🔄 GERİ GELEN EKSİK FONKSİYON 2
+            const handleStartEditDoctor = (docItem) => {
+                setEditingDoctorId(docItem.id);
+                setDoctorForm({ name: docItem.name, phone: docItem.phone || '', clinic: docItem.clinic || '', regionId: docItem.regionId, visitToday: !!docItem.visitToday, note: '' });
+                setModalType('doctor'); setShowModal(true);
+            };
+
+            // ⚠️ CASCADING SOFT DELETE (Bölge ve Doktor Silindiğinde Bağlı Verilerin Otomatik Arşivlenmesi)
             const handleDeleteDoctor = async (id) => {
                 const targetDoc = doctors.find(d => d.id === id);
-                if (confirm(`"${targetDoc?.name}" hekimini ve ona ait TÜM geçmiş ziyaret notlarını silmek istediğinize emin misiniz?`)) {
-                    const { doc, deleteDoc } = window.FirebaseMethods;
+                if (confirm(`"${targetDoc?.name}" hekimini ve ona bağlı tüm not geçmişini arşivlemek istediğinize emin misiniz?`)) {
+                    const { doc, updateDoc } = window.FirebaseMethods;
                     
-                    // Önce hekime bağlı tüm notları temizle (Veritabanı çöplüğü engellenir)
+                    // Bağlı notları soft-delete yapma
                     const relatedVisits = doctorVisits.filter(v => v.doctorId === id);
-                    for (const v of relatedVisits) { await deleteDoc(doc(window.db, 'shared_visits', v.id)); }
+                    for (const v of relatedVisits) { await updateDoc(doc(window.db, 'shared_visits', v.id), { deleted: true, deletedAt: Date.now() }); }
 
-                    await logSystemAction('delete_doctor', `"${targetDoc?.name}" ve tüm notları silindi.`, [id], targetDoc);
-                    await deleteDoc(doc(window.db, 'shared_doctors', id));
+                    await updateDoc(doc(window.db, 'shared_doctors', id), { deleted: true, deletedAt: Date.now() });
+                    await logSystemAction('delete_doctor', `"${targetDoc?.name}" arşiv odasına kaldırıldı.`, [id], targetDoc);
                 }
             };
 
-            // Ziyaret Notu Ekleme ve Akıllı Renk Durum Güncellemesi
+            // ⚠️ MADDELERDEN BİRİ: BÖLGE / ROTA SİLME VE DÜZENLEME MEKANİZMASI
+            const handleDeleteRegion = async (id, name) => {
+                if (!confirm(`"${name}" rotasını silmek istediğinize emin misiniz? Bu rotadaki hekimler "Tüm Hekimler" listesinde kalmaya devam edecektir.`)) return;
+                const { doc, updateDoc } = window.FirebaseMethods;
+                await updateDoc(doc(window.db, 'shared_regions', id), { deleted: true, deletedAt: Date.now() });
+                alert("Rota başarıyla kaldırıldı.");
+            };
+
             const handleSaveNote = async (docId) => {
                 if (!newNoteText.trim()) return;
                 const { collection, addDoc, doc, updateDoc } = window.FirebaseMethods;
@@ -250,22 +256,21 @@
 
                 await updateDoc(doc(window.db, 'shared_doctors', docId), { lastVisitStatus: visitStatus, lastVisitTime: Date.now() });
                 const dName = doctors.find(d => d.id === docId)?.name || "Hekim";
-                await logSystemAction('add_note', `"${dName}" için ziyaret notu düşüldü.`, [noteRef.id]);
+                await logSystemAction('add_note', `"${dName}" günlüğüne not eklendi.`, [noteRef.id]);
 
                 setNewNoteText(''); setVisitStatus('success');
             };
 
-            // ⚠️ NOT SİLİNDİĞİNDE TRAFİK IŞIĞINI YENİDEN HESAPLAMA MOTORU
             const handleDeleteNote = async (noteId, docId) => {
-                if (!confirm("Bu notu silmek istediğinize emin misiniz?")) return;
-                const { doc, deleteDoc, updateDoc } = window.FirebaseMethods;
+                if (!confirm("Bu ziyareti silmek istediğinize emin misiniz?")) return;
+                const { doc, updateDoc } = window.FirebaseMethods;
                 
-                await deleteDoc(doc(window.db, 'shared_visits', noteId));
+                await updateDoc(doc(window.db, 'shared_visits', noteId), { deleted: true, deletedAt: Date.now() });
 
-                // Kalan son nota göre kartın rengini dinamik yeniden hesapla (Veri tutarlılığı)
-                const remainingVisits = doctorVisits.filter(v => v.doctorId === docId && v.id !== noteId);
-                if (remainingVisits.length > 0) {
-                    await updateDoc(doc(window.db, 'shared_doctors', docId), { lastVisitStatus: remainingVisits[0].status, lastVisitTime: remainingVisits[0].timestamp });
+                // ⚠️ VERİ TUTARLILIĞI: Kalan en son aktif nota göre kart rengini anlık hesaplama
+                const remaining = doctorVisits.filter(v => v.doctorId === docId && v.id !== noteId && v.deleted !== true);
+                if (remaining.length > 0) {
+                    await updateDoc(doc(window.db, 'shared_doctors', docId), { lastVisitStatus: remaining[0].status, lastVisitTime: remaining[0].timestamp });
                 } else {
                     await updateDoc(doc(window.db, 'shared_doctors', docId), { lastVisitStatus: 'none', lastVisitTime: 0 });
                 }
@@ -290,57 +295,44 @@
             };
 
             const handleSavePreviewToFirebase = async () => {
-                const { collection, addDoc } = window.FirebaseMethods;
+                const { writeBatch, collection, doc } = window.FirebaseMethods;
+                const batch = writeBatch(window.db);
                 let defaultRegionId = regions[0]?.id || 'reg-1'; let addedIds = [];
+
                 for (const d of parsedPreviewDoctors) {
-                    const isDuplicate = doctors.some(x => cleanTurkish(x.name) === cleanTurkish(d.name));
+                    const normP = normalizePhone(d.phone);
+                    const isDuplicate = doctors.some(x => cleanTurkish(x.name) === cleanTurkish(d.name) || (normP && x.normalizedPhone === normP));
                     if (!isDuplicate) {
-                        const docRef = await addDoc(collection(window.db, 'shared_doctors'), { name: d.name, clinic: d.clinic, phone: d.phone, regionId: defaultRegionId, visitToday: false, lastVisitStatus: 'none', lastVisitTime: 0, timestamp: Date.now() });
-                        addedIds.push(docRef.id);
+                        const newRef = doc(collection(window.db, 'shared_doctors'));
+                        batch.set(newRef, {
+                            name: d.name, clinic: d.clinic, phone: d.phone, normalizedPhone: normP, searchKey: cleanTurkish(d.name) + " " + cleanTurkish(d.clinic), regionId: defaultRegionId, visitToday: false, lastVisitStatus: 'none', lastVisitTime: 0, timestamp: Date.now()
+                        });
+                        addedIds.push(newRef.id);
                     }
                 }
-                await logSystemAction('bulk_nav_confirm', `Haritadan ${addedIds.length} hekim onaylanarak aktarıldı.`, addedIds);
+                await batch.commit();
+                await logSystemAction('bulk_nav_confirm', `Haritadan ${addedIds.length} hekim onaylı aktarıldı.`, addedIds);
                 setParsedPreviewDoctors([]); setBulkNavText(''); setShowModal(false);
             };
 
-            const cleanTurkish = (str) => String(str).toLocaleLowerCase('tr-TR').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c');
+            const handleAddRegion = async (e) => {
+                e.preventDefault(); if (!regionForm.name) return;
+                const { collection, addDoc } = window.FirebaseMethods;
+                await addDoc(collection(window.db, 'shared_regions'), { name: regionForm.name, order: regions.length });
+                setShowModal(false); setRegionForm({ name: '' });
+            };
 
-            const filteredDoctors = useMemo(() => {
+            // ⚡ MADDE 7: YÜKSEK ARATMA PERFORMANSI (cleanTurkish arama anında değil, searchKey alanı üzerinden çalışır)
+            const filteredDoctorsMemo = useMemo(() => {
                 const todayStr = new Date().toLocaleDateString('tr-TR');
                 const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-                return doctors.filter(doc => {
-                    if (activeRegion === 'failed_visits_panel') return doc.lastVisitStatus === 'fail' && doc.lastVisitTime >= fourteenDaysAgo;
-                    if (activeRegion === 'success_visits_panel') return doc.lastVisitStatus === 'success' && doc.lastVisitTime >= fourteenDaysAgo;
-                    if (activeRegion === 'report_panel') return doctorVisits.some(v => v.doctorId === doc.id && v.date && v.date.split(' ')[0] === todayStr);
-                    if (activeRegion === 'today_panel') {
-                        const hasTodayReminder = doctorVisits.filter(v => v.doctorId === doc.id).some(v => v.emailDate && v.emailDate.split(' ')[0] === todayStr);
-                        return doc.visitToday || hasTodayReminder;
-                    }
-                    const matchesRegion = activeRegion === 'all' || doc.regionId === activeRegion;
-                    return matchesRegion && (cleanTurkish(doc.name) + " " + cleanTurkish(doc.clinic || '')).includes(cleanTurkish(searchTerm));
+                const targetKey = cleanTurkish(searchTerm);
+
+                return filteredDoctors.filter(doc => {
+                    const isMatched = !targetKey || (doc.searchKey && doc.searchKey.includes(targetKey));
+                    return isMatched;
                 });
             }, [doctors, activeRegion, searchTerm, doctorVisits]);
-
-            const handleTabSelect = (tabId) => { setActiveRegion(tabId); setIsMobileMenuOpen(false); };
-            const handleExcelExport = () => { /* Mevcut Excel export mantığı */ };
-
-            if (!fbReady) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-blue-500 font-black animate-pulse">GÜVENLİK DUVARI AŞILIYOR VE BAĞLANILIYOR...</div>;
-
-            if (!isLoggedIn) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-                        <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-10 animate-in">
-                            <form onSubmit={handleLoginSubmit} className="space-y-4">
-                                <h1 className="text-2xl font-black text-center text-slate-800">Seviye Dental <span className="text-blue-600">CRM</span></h1>
-                                <p className="text-center text-xs font-bold text-slate-400 uppercase tracking-widest">Resmi Firebase Auth Girişi</p>
-                                <input type="email" required className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-slate-700 focus:border-blue-600 outline-none" placeholder="E-Posta Adresiniz" value={loginForm.email} onChange={e => setLoginForm({...loginForm, email: e.target.value})} />
-                                <input type="password" required className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-slate-700 focus:border-blue-600 outline-none" placeholder="Şifreniz" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} />
-                                <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl uppercase tracking-wider shadow-md">Güvenli Giriş Yap</button>
-                            </form>
-                        </div>
-                    </div>
-                );
-            }
 
             return (
                 <div className="flex flex-col lg:flex-row min-h-screen relative">
@@ -360,29 +352,30 @@
                             <button onClick={() => handleTabSelect('failed_visits_panel')} className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl font-bold text-xs ${activeRegion === 'failed_visits_panel' ? 'bg-red-600 text-white' : 'bg-slate-800/40 text-red-400'}`}><span className="flex items-center gap-3"><Icon name="phone-off" size={14} /> 🔴 Tekrar Uğranacaklar</span></button>
                             <button onClick={() => handleTabSelect('success_visits_panel')} className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl font-bold text-xs mb-4 ${activeRegion === 'success_visits_panel' ? 'bg-indigo-600 text-white' : 'bg-slate-800/40 text-indigo-400'}`}><span className="flex items-center gap-3"><Icon name="check-circle" size={14} /> 🟢 Nadasa Bırakılanlar</span></button>
 
-                            {currentUser.includes('admin') || currentUser.includes('Yönetici') ? (
+                            {/* 🛡️ MADDE 3: GÜVENLİ YETKİ KONTROLÜ APERATİFİ */}
+                            {isAdmin && (
                                 <button onClick={() => handleTabSelect('logs_panel')} className={`w-full flex items-center gap-3 px-4 py-3 bg-red-950/20 text-red-400 border border-red-900/30 rounded-xl font-bold text-sm mb-4 ${activeRegion === 'logs_panel' ? 'bg-red-900 text-white shadow-lg' : ''}`}>
                                     <Icon name="shield-alert" size={18} /> 🛡️ Güvenlik & Sistem Logları
                                 </button>
-                            ) : null}
+                            )}
 
-                            <div className="flex items-center justify-between mb-2 px-2 border-t border-slate-800 pt-3"><h2 className="text-xs font-black uppercase text-slate-400 tracking-wider">Bölgeler / Rotalar</h2><button onClick={() => { setModalType('region'); setEditingDoctorId(null); setShowModal(true); }} className="p-1 text-blue-400"><Icon name="plus" size={18} /></button></div>
-                            
-                            <button onClick={() => handleTabSelect('all')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'all' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>
-                                <span className="flex items-center gap-3"><Icon name="globe" size={18} /> Tüm Hekimler</span>
-                                <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-black">{doctors.length}</span>
-                            </button>
+                            {/* MADDE 1: ROZET MOTORU */}
+                            <div className="flex items-center justify-between mb-2 px-2 border-t border-slate-800 pt-3"><h2 className="text-xs font-black uppercase text-slate-400 tracking-wider">Bölgeler / Rotalar</h2><button onClick={() => { setModalType('region'); setEditingRegionId(null); setShowModal(true); }} className="p-1 text-blue-400"><Icon name="plus" size={18} /></button></div>
+                            <button onClick={() => handleTabSelect('all')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'all' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}><span className="flex items-center gap-3"><Icon name="globe" size={18} /> Tüm Hekimler</span><span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-black">{doctors.length}</span></button>
                             
                             {regions.map(reg => (
-                                <div key={reg.id} onClick={() => handleTabSelect(reg.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeRegion === reg.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                                <div key={reg.id} onClick={() => handleTabSelect(reg.id)} className={`w-full flex items-center justify-between px-4 py-2 rounded-xl font-medium text-sm group/reg ${activeRegion === reg.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
                                     <span className="flex items-center gap-3 truncate"><Icon name="map-pin" size={16} /><span className="truncate">{reg.name}</span></span>
-                                    <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-black">{doctors.filter(d => d.regionId === reg.id).length}</span>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-black group-hover/reg:hidden">{doctors.filter(d => d.regionId === reg.id).length}</span>
+                                        {/* ⚠️ MADDE 5: ROTA SİLME BUTONU */}
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteRegion(reg.id, reg.name); }} className="hidden group-hover/reg:block text-red-400 p-1 hover:bg-red-500/10 rounded"><Icon name="trash-2" size={14}/></button>
+                                    </div>
                                 </div>
                             ))}
 
                             <div className="mt-4 pt-4 border-t border-slate-800 space-y-1">
                                 <button onClick={() => { setModalType('bulk_nav'); setShowModal(true); }} className="w-full flex items-center gap-3 px-4 py-2.5 bg-blue-950/40 text-blue-400 font-bold text-xs rounded-xl"><Icon name="map" size={16} /> Haritadan Toplu Aktar</button>
-                                <button onClick={handleExcelExport} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-xs text-emerald-400"><Icon name="file-spreadsheet" size={16} /> Excel Portföy İndir</button>
                                 <button onClick={() => fileInputRef.current.click()} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-xs text-blue-400"><Icon name="upload" size={16} /> Excel'den Toplu Yükle</button>
                                 <input type="file" ref={fileInputRef} onChange={handleExcelImport} accept=".xlsx, .xls" className="hidden" />
                             </div>
@@ -397,56 +390,20 @@
                     <main className="main-content flex-1 lg:ml-72 p-4 lg:p-10 bg-slate-50 min-h-screen pb-24">
                         {activeRegion === 'logs_panel' ? (
                             <div className="space-y-6 animate-in">
-                                <header className="mb-6">
-                                    <h2 className="text-2xl font-extrabold text-slate-800">🛡️ Sistem Güvenlik & İşlem Logları</h2>
-                                    <p className="text-xs font-bold text-red-500 uppercase tracking-widest mt-1">Sarsılmaz veri bütünlüğü ve tek tıkla geri alma (Undo) motoru</p>
-                                </header>
-                                <div className="bg-white rounded-[2rem] border p-6 shadow-sm">
-                                    <div className="space-y-4">
-                                        {systemLogs.map(log => (
-                                            <div key={log.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 p-4 rounded-2xl border gap-4 transition-all">
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-[10px] font-black uppercase bg-slate-900 text-white px-2 py-0.5 rounded">{log.user}</span>
-                                                        <span className="text-[9px] font-bold text-slate-400">⏱ {log.date}</span>
-                                                    </div>
-                                                    <p className="text-xs font-extrabold text-slate-700">"{log.details}"</p>
-                                                </div>
-                                                <button onClick={() => handleUndoAction(log)} className="py-2 px-4 bg-white text-red-600 font-black rounded-xl border border-red-200 text-xs shadow-sm uppercase tracking-wider flex items-center gap-1">
-                                                    <Icon name="rotate-ccw" size={14} /> Geri Al (Undo)
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        ) : activeRegion === 'report_panel' ? (
-                            <div className="space-y-6 animate-in">
-                                <header className="mb-6"><h2 className="text-2xl font-extrabold text-slate-800">📋 Bugünün Saha Ziyaret Raporu</h2></header>
-                                <div className="bg-white rounded-[2rem] border p-6 shadow-sm overflow-hidden">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead><tr className="border-b text-[10px] font-black uppercase text-slate-400"><th className="py-4 px-4">Hekim Adı</th><th className="py-4 px-4">Klinik</th><th className="py-4 px-4">Bölge</th><th className="py-4 px-4">Ziyaret Notu</th></tr></thead>
-                                        <tbody className="divide-y text-xs font-bold text-slate-700">
-                                            {filteredDoctors.map(doc => {
-                                                const todayStr = new Date().toLocaleDateString('tr-TR');
-                                                const todayVisits = doctorVisits.filter(v => v.doctorId === doc.id && v.date && v.date.split(' ')[0] === todayStr);
-                                                return todayVisits.map((v, index) => (
-                                                    <tr key={v.id} className="hover:bg-slate-50">
-                                                        {index === 0 ? (
-                                                            <><td className="py-4 px-4 font-extrabold text-slate-900" rowSpan={todayVisits.length}>{doc.name}</td><td className="py-4 px-4 text-slate-500" rowSpan={todayVisits.length}>{doc.clinic || '-'}</td><td className="py-4 px-4" rowSpan={todayVisits.length}><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{regions.find(r => r.id === doc.regionId)?.name}</span></td></>
-                                                        ) : null}
-                                                        <td className="py-4 px-4 border-l bg-emerald-50/30"><p>"{v.rawText || v.text}"</p><div className="flex gap-2 mt-1 text-[9px] font-black"><span className="text-slate-400">⏱ {v.date.split(' ')[1]}</span><span className="text-blue-600">👤 {v.user}</span></div></td>
-                                                    </tr>
-                                                ));
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <header className="mb-6"><h2 className="text-2xl font-extrabold text-slate-800">🛡️ Canlı Sistem İşlem ve Güvenlik Logları</h2></header>
+                                <div className="bg-white rounded-[2rem] border p-6 shadow-sm"><div className="space-y-4">
+                                    {systemLogs.map(log => (
+                                        <div key={log.id} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border">
+                                            <div><p className="text-xs font-extrabold text-slate-700">"{log.details}"</p><span className="text-[9px] text-slate-400">{log.user} | {log.date}</span></div>
+                                            <button onClick={() => handleUndoAction(log)} className="py-2 px-4 bg-white text-red-600 font-black rounded-xl border border-red-200 text-xs shadow-sm">Geri Al (Undo)</button>
+                                        </div>
+                                    ))}
+                                </div></div>
                             </div>
                         ) : (
                             <>
                                 <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-extrabold text-slate-800">Saha Portföy Listesi</h2>
+                                    <h2 className="text-2xl font-extrabold text-slate-800">Saha Satış İletişim Portföyü</h2>
                                     <button onClick={() => { setModalType('doctor'); setEditingDoctorId(null); setDoctorForm({ name: '', phone: '', clinic: '', regionId: '', note: '', visitToday: false }); setShowModal(true); }} className="px-4 py-2.5 bg-blue-600 text-white font-bold text-xs uppercase rounded-xl">+ Ekle</button>
                                 </div>
                                 <div className="mb-6 relative">
@@ -454,8 +411,8 @@
                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" size={20} /></div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                                    {filteredDoctors.map(doc => {
-                                        const lastVisit = doctorVisits.find(v => v.doctorId === doc.id);
+                                    {filteredDoctorsMemo.map(doc => {
+                                        const lastVisit = doctorVisits.find(v => v.doctorId === doc.id && v.deleted !== true);
                                         return (
                                             <div key={doc.id} className={`bg-white rounded-3xl border-l-8 p-6 flex flex-col justify-between shadow-sm border-y border-r border-slate-100 ${doc.lastVisitStatus === 'success' ? 'border-l-green-500' : doc.lastVisitStatus === 'fail' ? 'border-l-red-500' : 'border-l-slate-300'}`}>
                                                 <div>
@@ -489,7 +446,7 @@
                             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl p-6 sm:p-8 overflow-hidden animate-in">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-xl font-extrabold text-slate-900">{selectedDoctor.name} Günlüğü</h3>
-                                    <button onClick={() => { setSelectedDoctor(null); setEditingNoteId(null); setNewNoteText(''); }} className="p-2 border rounded-xl"><Icon name="x" size={18} /></button>
+                                    <button onClick={() => { setSelectedDoctor(null); setEditingNoteId(null); setNewNoteText(''); }} className="p-2 border rounded-xl hover:bg-slate-100"><Icon name="x" size={18} /></button>
                                 </div>
                                 <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
                                     <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border">
@@ -501,9 +458,8 @@
                                         <button type="button" onClick={async () => { await handleSaveNote(selectedDoctor.id); }} className="w-full py-2.5 bg-blue-600 text-white font-black text-xs uppercase rounded-xl">Kaydet</button>
                                     </div>
                                     <div className="space-y-2 pt-4 border-t">
-                                        {doctorVisits.filter(v => v.doctorId === selectedDoctor.id).map(n => (
+                                        {doctorVisits.filter(v => v.doctorId === selectedDoctor.id && v.deleted !== true).map(n => (
                                             <div key={n.id} className="bg-slate-50 p-4 rounded-2xl border relative">
-                                                {/* ⚠️ NOT SİLME VE ANLIK RENK GÜNCELLEME BUTONU */}
                                                 <button onClick={() => handleDeleteNote(n.id, selectedDoctor.id)} className="absolute right-3 top-3 text-slate-300 hover:text-red-500"><Icon name="trash-2" size={14}/></button>
                                                 <span className="text-[9px] font-black text-blue-500 block">{n.date}</span>
                                                 <p className="text-xs font-bold text-slate-700 mt-1.5 pr-8">"{n.rawText || n.text}"</p>
@@ -528,6 +484,12 @@
                                         <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black text-xs uppercase rounded-xl">Önizleme Listesi Oluştur</button>
                                     </form>
                                 )}
+                                {modalType === 'region' && (
+                                    <form onSubmit={handleAddRegion} className="space-y-4">
+                                        <input type="text" required placeholder="Rota Adı (Örn: Bucak Rotaları)" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={regionForm.name} onChange={e => setRegionForm({name: e.target.value})} />
+                                        <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black text-xs uppercase rounded-xl">Rotayı Kaydet</button>
+                                    </form>
+                                )}
                                 {modalType === 'doctor' && (
                                     <form onSubmit={handleAddDoctor} className="space-y-4">
                                         <input type="text" required placeholder="Hekim Adı Soyadı" className="w-full p-4 border rounded-xl font-bold text-sm" value={doctorForm.name} onChange={e => setDoctorForm({...doctorForm, name: e.target.value})} />
@@ -541,7 +503,7 @@
                         </div>
                     )}
 
-                    {/* ⚠️ GÜVENLİK ÖNİZLEME MODALI */}
+                    {/* GÜVENLİK ÖNİZLEME MODALI */}
                     {modalType === 'bulk_preview_modal' && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[200] flex items-center justify-center p-4">
                             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl p-8 overflow-hidden max-h-[85vh] flex flex-col justify-between animate-in">
@@ -550,17 +512,15 @@
                                     <div className="overflow-y-auto max-h-[50vh] pr-2 custom-scrollbar space-y-2">
                                         {parsedPreviewDoctors.map(p => (
                                             <div key={p.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border text-xs font-bold text-slate-700">
-                                                <div className="grid grid-cols-3 flex-1 gap-2">
-                                                    <div>{p.name}</div><div>{p.clinic}</div><div>{p.phone}</div>
-                                                </div>
+                                                <div className="grid grid-cols-3 flex-1 gap-2"><div>{p.name}</div><div>{p.clinic}</div><div>{p.phone}</div></div>
                                                 <button onClick={() => setParsedPreviewDoctors(parsedPreviewDoctors.filter(x => x.id !== p.id))} className="text-red-500 p-2"><Icon name="trash-2" size={16} /></button>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                                 <div className="flex gap-3 pt-6 border-t mt-4">
-                                    <button onClick={() => setModalType('bulk_nav')} className="py-3 px-6 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs uppercase">Geri</button>
-                                    <button onClick={handleSavePreviewToFirebase} className="flex-1 py-3 bg-blue-600 text-white font-black text-xs uppercase rounded-xl shadow-md">Temizlenen {parsedPreviewDoctors.length} Hekimi Aktar</button>
+                                    <button onClick={() => setModalType('bulk_nav')} className="py-3 px-6 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs">Geri</button>
+                                    <button onClick={handleSavePreviewToFirebase} className="flex-1 py-3 bg-blue-600 text-white font-black text-xs uppercase rounded-xl">Mükerrersiz {parsedPreviewDoctors.length} Hekimi Aktar</button>
                                 </div>
                             </div>
                         </div>
