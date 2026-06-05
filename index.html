@@ -28,7 +28,7 @@
         window.FirebaseMethods = { doc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, orderBy };
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F8FAFC; color: #0F172A; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -76,6 +76,8 @@
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
             const [doctorForm, setDoctorForm] = useState({ name: '', phone: '', clinic: '', regionId: '', note: '', visitToday: false });
+            const [editingDoctorId, setEditingDoctorId] = useState(null);
+            
             const [regionForm, setRegionForm] = useState({ name: '' });
             const [userForm, setUserForm] = useState({ username: '', password: '', name: '' });
             const [newNoteText, setNewNoteText] = useState('');
@@ -83,9 +85,10 @@
             const [editingNoteId, setEditingNoteId] = useState(null);
             const [reminderDate, setReminderDate] = useState(''); 
             const [reminderEmail, setReminderEmail] = useState('');
-
-            // Ziyaret durumu seçimi için yeni durum ('success' veya 'fail')
             const [visitStatus, setVisitStatus] = useState('success');
+
+            // Navigasyon Kopyala-Yapıştır için yeni metin alanı durumu
+            const [bulkNavText, setBulkNavText] = useState('');
 
             const fileInputRef = useRef(null);
 
@@ -98,8 +101,7 @@
 
             useEffect(() => {
                 if (!isLoggedIn) return;
-                let timeoutId;
-                const idleTime = 2 * 60 * 1000;
+                let timeoutId; const idleTime = 2 * 60 * 1000;
                 const resetTimer = () => { clearTimeout(timeoutId); timeoutId = setTimeout(handleLogout, idleTime); };
                 const handleLogout = () => {
                     setIsLoggedIn(false); setCurrentUser(''); localStorage.removeItem('crm_user_session');
@@ -128,12 +130,62 @@
 
             useEffect(() => { if (selectedDoctor && !editingNoteId) setReminderDate(getTenDaysLaterISO()); }, [selectedDoctor, editingNoteId]);
 
+            // 🗺️ YENİ: NAVİGASYONDAN KOPYALA-YAPIŞTIR AKILLI AYIKLAMA MOTORU
+            const handleBulkNavParse = async (e) => {
+                e.preventDefault();
+                if (!bulkNavText.trim()) return;
+
+                const lines = bulkNavText.split('\n');
+                const { collection, addDoc } = window.FirebaseMethods;
+                let defaultRegionId = regions[0]?.id || 'reg-1';
+                let addedCount = 0;
+
+                let currentName = "";
+                let currentPhone = "";
+                let currentClinic = "";
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    // Telefon numarası ayıklama kalıbı (05xx, 02xx vb.)
+                    const phoneMatch = line.match(/(0\s?\d{3}\s?\d{3}\s?\d{2}\s?\d{2})|(\+90\d{10})|(\d{7,11})/);
+
+                    if (phoneMatch) {
+                        currentPhone = phoneMatch[0];
+                    } else if (line.toLowerCase().includes('diş') || line.toLowerCase().includes('poliklini') || line.toLowerCase().includes('muayene') || line.toLowerCase().includes('dt.')) {
+                        // Eğer eski birikmiş bir kayıt varsa önce onu buluta gönder
+                        if (currentName) {
+                            await addDoc(collection(window.db, 'shared_doctors'), {
+                                name: currentName, clinic: currentClinic || currentName, phone: currentPhone || '-', regionId: defaultRegionId, visitToday: false, lastVisitStatus: 'none', lastVisitTime: 0, timestamp: Date.now()
+                            });
+                            addedCount++;
+                            currentPhone = ""; currentClinic = "";
+                        }
+                        currentName = line;
+                    } else if (line.length > 5 && line.length < 50 && !currentClinic) {
+                        currentClinic = line;
+                    }
+
+                    // Son kalan kaydı da döngü bitiminde ekle
+                    if (i === lines.length - 1 && currentName) {
+                        await addDoc(collection(window.db, 'shared_doctors'), {
+                            name: currentName, clinic: currentClinic || currentName, phone: currentPhone || '-', regionId: defaultRegionId, visitToday: false, lastVisitStatus: 'none', lastVisitTime: 0, timestamp: Date.now()
+                        });
+                        addedCount++;
+                    }
+                }
+
+                alert(`🎯 Harita verisi başarıyla tarandı! ${addedCount} adet yeni özel klinik ortak havuzunuza eklendi.`);
+                setBulkNavText('');
+                setShowModal(false);
+            };
+
             const handleExcelImport = (e) => {
                 const file = e.target.files[0]; if (!file) return;
                 const reader = new FileReader();
                 reader.onload = async (evt) => {
-                    const bstr = evt.target.result; const wb = XLSX.read(bstr, { type: 'binary' });
-                    const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                    const data = XLSX.utils.sheet_to_json(XLSX.read(evt.target.result, { type: 'binary' }).Sheets[wb.SheetNames[0]]);
                     const { collection, addDoc } = window.FirebaseMethods;
                     let defaultRegionId = regions[0]?.id || 'reg-1';
                     for (const row of data) {
@@ -143,7 +195,7 @@
                             });
                         }
                     }
-                    alert(`✅ ${data.length} adet hekim yüklendi!`);
+                    alert(`✅ Hekimler yüklendi!`);
                 };
                 reader.readAsBinaryString(file);
             };
@@ -176,16 +228,24 @@
 
             const handleAddDoctor = async (e) => {
                 e.preventDefault(); if (!doctorForm.name || !doctorForm.regionId) return;
-                const { collection, addDoc } = window.FirebaseMethods;
-                const docRef = await addDoc(collection(window.db, 'shared_doctors'), {
-                    name: doctorForm.name, phone: doctorForm.phone, clinic: doctorForm.clinic, regionId: doctorForm.regionId, visitToday: !!doctorForm.visitToday, lastVisitStatus: 'none', lastVisitTime: 0, timestamp: Date.now()
-                });
-                if (doctorForm.note) {
-                    await addDoc(collection(window.db, 'shared_visits'), {
-                        doctorId: docRef.id, text: doctorForm.note, rawText: doctorForm.note, date: new Date().toLocaleString('tr-TR'), timestamp: Date.now(), user: currentUser, status: 'success'
+                const { collection, addDoc, doc, updateDoc } = window.FirebaseMethods;
+                
+                if (editingDoctorId) {
+                    await updateDoc(doc(window.db, 'shared_doctors', editingDoctorId), { name: doctorForm.name, phone: doctorForm.phone, clinic: doctorForm.clinic, regionId: doctorForm.regionId, visitToday: !!doctorForm.visitToday });
+                } else {
+                    const docRef = await addDoc(collection(window.db, 'shared_doctors'), {
+                        name: doctorForm.name, phone: doctorForm.phone, clinic: doctorForm.clinic, regionId: doctorForm.regionId, visitToday: !!doctorForm.visitToday, lastVisitStatus: 'none', lastVisitTime: 0, timestamp: Date.now()
                     });
+                    if (doctorForm.note) {
+                        await addDoc(collection(window.db, 'shared_visits'), { doctorId: docRef.id, text: doctorForm.note, rawText: doctorForm.note, date: new Date().toLocaleString('tr-TR'), timestamp: Date.now(), user: currentUser, status: 'success' });
+                    }
                 }
-                setShowModal(false); setDoctorForm({ name: '', phone: '', clinic: '', regionId: '', note: '', visitToday: false });
+                setShowModal(false); setEditingDoctorId(null); setDoctorForm({ name: '', phone: '', clinic: '', regionId: '', note: '', visitToday: false });
+            };
+
+            const handleStartEditDoctor = (docItem) => {
+                setEditingDoctorId(docItem.id); setDoctorForm({ name: docItem.name, phone: docItem.phone || '', clinic: docItem.clinic || '', regionId: docItem.regionId, visitToday: !!docItem.visitToday, note: '' });
+                setModalType('doctor'); setShowModal(true);
             };
 
             const handleAddRegion = async (e) => {
@@ -207,33 +267,20 @@
                 const { doc, deleteDoc } = window.FirebaseMethods; await deleteDoc(doc(window.db, 'shared_users', id));
             };
 
-            // Not Kaydetme Esnasında Ziyaret Durumunu İşleme (2 Haftalık Kurgu)
             const handleSaveNote = async (docId) => {
                 if (!newNoteText.trim()) return;
                 const { collection, addDoc, doc, updateDoc } = window.FirebaseMethods;
-                
                 let reminderInfo = ""; let emailRem = reminderEmail || null; let emailDt = null;
                 if (reminderDate && reminderEmail) {
                     emailDt = new Date(reminderDate).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
                     reminderInfo = ` [M-Hatırlatıcı: ${emailDt} saatinde ${reminderEmail} adresine gönderilecek]`;
                 }
-
                 if (editingNoteId) {
-                    await updateDoc(doc(window.db, 'shared_visits', editingNoteId), {
-                        text: newNoteText + reminderInfo, rawText: newNoteText, emailReminder: emailRem, emailDate: emailDt, user: currentUser, status: visitStatus
-                    });
+                    await updateDoc(doc(window.db, 'shared_visits', editingNoteId), { text: newNoteText + reminderInfo, rawText: newNoteText, emailReminder: emailRem, emailDate: emailDt, user: currentUser, status: visitStatus });
                 } else {
-                    await addDoc(collection(window.db, 'shared_visits'), {
-                        doctorId: docId, text: newNoteText + reminderInfo, rawText: newNoteText, date: new Date().toLocaleString('tr-TR'), timestamp: Date.now(), emailReminder: emailRem, emailDate: emailDt, user: currentUser, status: visitStatus
-                    });
+                    await addDoc(collection(window.db, 'shared_visits'), { doctorId: docId, text: newNoteText + reminderInfo, rawText: newNoteText, date: new Date().toLocaleString('tr-TR'), timestamp: Date.now(), emailReminder: emailRem, emailDate: emailDt, user: currentUser, status: visitStatus });
                 }
-
-                // Hekim kartındaki son ziyaret durumu ve zaman damgasını güncelleme
-                await updateDoc(doc(window.db, 'shared_doctors', docId), {
-                    lastVisitStatus: visitStatus,
-                    lastVisitTime: Date.now()
-                });
-
+                await updateDoc(doc(window.db, 'shared_doctors', docId), { lastVisitStatus: visitStatus, lastVisitTime: Date.now() });
                 setNewNoteText(''); setReminderEmail(''); setEditingNoteId(null); setReminderDate(getTenDaysLaterISO()); setVisitStatus('success');
             };
 
@@ -259,23 +306,13 @@
 
             const cleanTurkish = (str) => String(str).toLocaleLowerCase('tr-TR').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c');
 
-            // 🔍 Gelişmiş Filtreleme Arayüzü (2 Haftalık Listeler Buraya Bağlandı)
             const filteredDoctors = useMemo(() => {
                 const todayStr = new Date().toLocaleDateString('tr-TR');
-                const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000; // 2 Hafta milisaniyesi
-
+                const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
                 return doctors.filter(doc => {
-                    // 🔴 SÜZGEÇ 1: Son 2 hafta içinde gidilen ama görüşülemeyenler (Tekrar Uğranacaklar)
-                    if (activeRegion === 'failed_visits_panel') {
-                        return doc.lastVisitStatus === 'fail' && doc.lastVisitTime >= fourteenDaysAgo;
-                    }
-                    // 🟢 SÜZGEÇ 2: Son 2 hafta içinde başarılı görüşülenler (Nadasa Bırakılanlar)
-                    if (activeRegion === 'success_visits_panel') {
-                        return doc.lastVisitStatus === 'success' && doc.lastVisitTime >= fourteenDaysAgo;
-                    }
-                    if (activeRegion === 'report_panel') {
-                        return doctorVisits.some(v => v.doctorId === doc.id && v.date && v.date.split(' ')[0] === todayStr);
-                    }
+                    if (activeRegion === 'failed_visits_panel') return doc.lastVisitStatus === 'fail' && doc.lastVisitTime >= fourteenDaysAgo;
+                    if (activeRegion === 'success_visits_panel') return doc.lastVisitStatus === 'success' && doc.lastVisitTime >= fourteenDaysAgo;
+                    if (activeRegion === 'report_panel') return doctorVisits.some(v => v.doctorId === doc.id && v.date && v.date.split(' ')[0] === todayStr);
                     if (activeRegion === 'today_panel') {
                         const hasTodayReminder = doctorVisits.filter(v => v.doctorId === doc.id).some(v => v.emailDate && v.emailDate.split(' ')[0] === todayStr);
                         return doc.visitToday || hasTodayReminder;
@@ -330,7 +367,6 @@
                                 <span className="flex items-center gap-3"><Icon name="file-text" size={18} /> Akşam Saha Raporu</span>
                             </button>
 
-                            {/* 🚨 YENİ SÜZGEÇLER: 2 HAFTALIK ZİYARET TAKİP PANEL BUTONLARI */}
                             <div className="pt-2 pb-1 px-2"><h2 className="text-[10px] font-black uppercase text-slate-500 tracking-wider">2 Haftalık Durum Takibi</h2></div>
                             <button onClick={() => handleTabSelect('failed_visits_panel')} className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl font-bold text-xs ${activeRegion === 'failed_visits_panel' ? 'bg-red-600 text-white' : 'bg-slate-800/40 text-red-400 hover:bg-slate-800'}`}>
                                 <span className="flex items-center gap-3"><Icon name="phone-off" size={14} /> 🔴 Tekrar Uğranacaklar</span>
@@ -341,7 +377,7 @@
 
                             <div className="flex items-center justify-between mb-2 px-2 border-t border-slate-800 pt-3">
                                 <h2 className="text-xs font-black uppercase text-slate-400 tracking-wider">Bölgeler / Rotalar</h2>
-                                <button onClick={() => { setModalType('region'); setShowModal(true); }} className="p-1 hover:bg-slate-800 rounded-lg text-blue-400"><Icon name="plus" size={18} /></button>
+                                <button onClick={() => { setModalType('region'); setEditingDoctorId(null); setShowModal(true); }} className="p-1 hover:bg-slate-800 rounded-lg text-blue-400"><Icon name="plus" size={18} /></button>
                             </div>
 
                             <button onClick={() => handleTabSelect('all')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'all' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
@@ -350,17 +386,17 @@
                             </button>
 
                             {regions.map(reg => (
-                                <div
-                                    key={reg.id} draggable onDragStart={() => handleDragStart(reg.id)} onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(reg.id)} onClick={() => handleTabSelect(reg.id)}
-                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-grab active:cursor-grabbing ${activeRegion === reg.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
-                                >
-                                    <span className="flex items-center gap-3 truncate"><Icon name="grip-vertical" size={16} className="text-slate-600" /><span className="truncate">{reg.name}</span></span>
-                                    <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">{doctors.filter(d => d.regionId === reg.id).length}</span>
-                                </div>
+                                <div key={reg.id} draggable onDragStart={() => handleDragStart(reg.id)} onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(reg.id)} onClick={() => handleTabSelect(reg.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all cursor-grab active:cursor-grabbing ${activeRegion === reg.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><span className="flex items-center gap-3 truncate"><Icon name="grip-vertical" size={16} className="text-slate-600" /><span className="truncate">{reg.name}</span></span><span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">{doctors.filter(d => d.regionId === reg.id).length}</span></div>
                             ))}
 
                             <div className="mt-4 pt-4 border-t border-slate-800 space-y-1">
                                 <button onClick={() => handleTabSelect('users_panel')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'users_panel' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><Icon name="settings" size={18} /> Ekip & Şifre Yönetimi</button>
+                                
+                                {/* 🗺️ YENİ: NAVİGASYONDAN KOPYALA-YAPIŞTIR SİHİRBAZINI TETİKLEYEN HIZLI MENÜ BUTONU */}
+                                <button onClick={() => { setModalType('bulk_nav'); setShowModal(true); }} className="w-full flex items-center gap-3 px-4 py-2.5 bg-blue-950/40 text-blue-400 font-bold text-xs rounded-xl hover:bg-slate-800">
+                                    <Icon name="map" size={16} /> 🗺️ Haritadan Toplu Aktar
+                                </button>
+
                                 <button onClick={handleExcelExport} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-xs text-emerald-400 hover:bg-slate-800/50"><Icon name="file-spreadsheet" size={16} /> Excel Portföy İndir</button>
                                 <button onClick={() => fileInputRef.current.click()} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-xs text-blue-400 hover:bg-slate-800/50"><Icon name="upload" size={16} /> Excel'den Toplu Yükle</button>
                                 <input type="file" ref={fileInputRef} onChange={handleExcelImport} accept=".xlsx, .xls" className="hidden" />
@@ -408,11 +444,9 @@
                                 <header className="mb-6"><h2 className="text-2xl font-extrabold text-slate-800">📋 Bugünün Saha Ziyaret Raporu</h2><p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mt-1">Bugün Not Girilen Hekimler Listesi</p></header>
                                 <div className="bg-white rounded-[2rem] border p-6 shadow-sm overflow-hidden">
                                     <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse">
+                                        <table className="w-full text-left border-collapse border-0">
                                             <thead>
-                                                <tr className="border-b text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                                    <th className="py-4 px-4">Hekim Adı</th><th className="py-4 px-4">Klinik / Hastane</th><th className="py-4 px-4">Bölge</th><th className="py-4 px-4">Bugün Girilen Ziyaret Notu</th>
-                                                </tr>
+                                                <tr className="border-b text-[10px] font-black uppercase text-slate-400 tracking-wider"><th className="py-4 px-4">Hekim Adı</th><th className="py-4 px-4">Klinik / Hastane</th><th className="py-4 px-4">Bölge</th><th className="py-4 px-4">Bugün Girilen Ziyaret Notu</th></tr>
                                             </thead>
                                             <tbody className="divide-y text-xs font-bold text-slate-700">
                                                 {filteredDoctors.map(doc => {
@@ -427,10 +461,7 @@
                                                                     <td className="py-4 px-4" rowSpan={todayVisits.length}><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-black">{regions.find(r => r.id === doc.regionId)?.name}</span></td>
                                                                 </>
                                                             ) : null}
-                                                            <td className="py-4 px-4 border-l bg-emerald-50/30">
-                                                                <p className="text-slate-800">"{v.rawText || v.text}"</p>
-                                                                <div className="flex gap-2 mt-1 text-[9px] font-black"><span className="text-slate-400">⏱️ {v.date.split(' ')[1]}</span><span className="text-blue-600">👤 Yazan: {v.user || 'Sistem'}</span></div>
-                                                            </td>
+                                                            <td className="py-4 px-4 border-l bg-emerald-50/30"><p className="text-slate-800">"{v.rawText || v.text}"</p><div className="flex gap-2 mt-1 text-[9px] font-black"><span className="text-slate-400">⏱️ {v.date.split(' ')[1]}</span><span className="text-blue-600">👤 Yazan: {v.user || 'Sistem'}</span></div></td>
                                                         </tr>
                                                     ));
                                                 })}
@@ -448,7 +479,7 @@
                                         </h2>
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Saha İletişim Havuzu</p>
                                     </div>
-                                    <button onClick={() => { setModalType('doctor'); setDoctorForm({ name: '', phone: '', clinic: '', regionId: ['all', 'today_panel', 'failed_visits_panel', 'success_visits_panel'].includes(activeRegion) ? '' : activeRegion, note: '', visitToday: false }); setShowModal(true); }} className="px-4 py-2.5 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg hover:bg-blue-700">+ Ekle</button>
+                                    <button onClick={() => { setModalType('doctor'); setEditingDoctorId(null); setDoctorForm({ name: '', phone: '', clinic: '', regionId: ['all', 'today_panel', 'failed_visits_panel', 'success_visits_panel'].includes(activeRegion) ? '' : activeRegion, note: '', visitToday: false }); setShowModal(true); }} className="px-4 py-2.5 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg hover:bg-blue-700">+ Ekle</button>
                                 </div>
 
                                 <div className="mb-6 relative">
@@ -460,19 +491,16 @@
                                     {filteredDoctors.map(doc => {
                                         const lastVisit = doctorVisits.find(v => v.doctorId === doc.id);
                                         return (
-                                            /* 🚨 AKILLI TRAFİK IŞIĞI KENARLIĞI: Görüşme durumuna göre kartın sol çizgisi renk değiştirir */
                                             <div key={doc.id} className={`bg-white rounded-3xl border-l-8 border-y border-r border-slate-100 shadow-sm p-6 flex flex-col justify-between hover:shadow-xl transition-all ${doc.lastVisitStatus === 'success' ? 'border-l-green-500' : doc.lastVisitStatus === 'fail' ? 'border-l-red-500' : 'border-l-slate-300'}`}>
                                                 <div>
                                                     <div className="flex justify-between items-start mb-4">
                                                         <div className="bg-blue-50 text-blue-600 p-3 rounded-2xl"><Icon name="user-round" size={24} /></div>
-                                                        <button onClick={(e) => { e.stopPropagation(); toggleTodayVisit(doc); }} className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md transition-all ${doc.visitToday ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-amber-100'}`}>
-                                                            {doc.visitToday ? '🌟 Listemde' : '➕ Ekle'}
-                                                        </button>
+                                                        <button onClick={(e) => { e.stopPropagation(); toggleTodayVisit(doc); }} className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md transition-all ${doc.visitToday ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-amber-100'}`}>{doc.visitToday ? '🌟 Listemde' : '➕ Ekle'}</button>
                                                     </div>
                                                     <h3 className="text-lg font-extrabold text-slate-800 mb-1">{doc.name}</h3>
-                                                    {doc.clinic && <p className="text-xs font-bold text-slate-400 flex items-center gap-1.5 mb-2"><Icon name="building" size={14} /> {doc.clinic}</p>}
+                                                    {doc.clinic && <p className="text-xs font-bold text-slate-400 flex items-center gap-1.5 mb-1"><Icon name="building" size={14} /> {doc.clinic}</p>}
+                                                    {doc.phone && <p className="text-xs font-bold text-slate-400 flex items-center gap-1.5 mb-2"><Icon name="phone" size={14} /> {doc.phone}</p>}
                                                     
-                                                    {/* Durum Rozeti Gösterimi */}
                                                     <div className="mt-1">
                                                         {doc.lastVisitStatus === 'success' && <span className="text-[9px] font-black uppercase bg-green-50 text-green-700 px-2 py-0.5 rounded">🟢 Başarılı Görüşme</span>}
                                                         {doc.lastVisitStatus === 'fail' && <span className="text-[9px] font-black uppercase bg-red-50 text-red-700 px-2 py-0.5 rounded">🔴 Görüşme Sağlanamadı</span>}
@@ -490,6 +518,7 @@
                                                 </div>
                                                 <div className="flex gap-2 mt-4">
                                                     <button onClick={() => { setSelectedDoctor(doc); setEditingNoteId(null); setNewNoteText(''); setVisitStatus(doc.lastVisitStatus || 'success'); }} className="flex-1 py-2.5 bg-slate-900 text-white font-bold text-xs uppercase rounded-xl hover:bg-slate-800">Detay & Notlar</button>
+                                                    <button onClick={() => handleStartEditDoctor(doc)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100" title="Hekim Bilgilerini Düzenle"><Icon name="pencil" size={16}/></button>
                                                     <button onClick={() => handleDeleteDoctor(doc.id)} className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100"><Icon name="trash-2" size={16}/></button>
                                                 </div>
                                             </div>
@@ -500,7 +529,6 @@
                         )}
                     </main>
 
-                    {/* MODAL: Hekim Detay & Not Girişi (Ziyaret Durum Seçimi Eklendi) */}
                     {selectedDoctor && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden p-6 sm:p-8 animate-in">
@@ -511,20 +539,13 @@
                                 <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
                                     <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-blue-100">
                                         <textarea placeholder="Ziyaret notunu buraya girin..." className="w-full p-3 border rounded-xl text-xs font-bold h-16 outline-none bg-white focus:border-blue-500" value={newNoteText} onChange={e => setNewNoteText(e.target.value)} />
-                                        
-                                        {/* 🔴 / 🟢 SAHA DURUM SEÇİMİ: Görüşme sağlandı mı, sağlanamadı mı? */}
                                         <div>
                                             <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Bu Ziyaretin Durumu Nedir?</label>
                                             <div className="grid grid-cols-2 gap-2">
-                                                <button type="button" onClick={() => setVisitStatus('success')} className={`py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex items-center justify-center gap-1.5 ${visitStatus === 'success' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>
-                                                    <Icon name="check-circle" size={14} /> Görüşme Sağlandı
-                                                </button>
-                                                <button type="button" onClick={() => setVisitStatus('fail')} className={`py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex items-center justify-center gap-1.5 ${visitStatus === 'fail' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>
-                                                    <Icon name="phone-off" size={14} /> Görüşme Sağlanamadı
-                                                </button>
+                                                <button type="button" onClick={() => setVisitStatus('success')} className={`py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex items-center justify-center gap-1.5 ${visitStatus === 'success' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 hover:bg-slate-100'}`}><Icon name="check-circle" size={14} /> Görüşme Sağlandı</button>
+                                                <button type="button" onClick={() => setVisitStatus('fail')} className={`py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex items-center justify-center gap-1.5 ${visitStatus === 'fail' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-600 hover:bg-slate-100'}`}><Icon name="phone-off" size={14} /> Görüşme Sağlanamadı</button>
                                             </div>
                                         </div>
-
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                             <div><input type="datetime-local" className="w-full p-2 bg-white border rounded-lg text-xs font-bold outline-none text-slate-600" value={reminderDate} onChange={e => setReminderDate(e.target.value)} /></div>
                                             <div><input type="email" placeholder="Hatırlatılacak E-Posta" className="w-full p-2 bg-white border rounded-lg text-xs font-bold outline-none text-slate-600" value={reminderEmail} onChange={e => setReminderEmail(e.target.value)} /></div>
@@ -532,16 +553,8 @@
                                         <button type="button" onClick={async () => { await handleSaveNote(selectedDoctor.id); }} className="w-full py-2.5 bg-blue-600 text-white font-black text-xs uppercase rounded-xl shadow-md">Notu ve Durumu Ortak Havuza Kaydet</button>
                                     </div>
                                     <div className="space-y-2 pt-4 border-t">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Geçmiş Notlar (Ortak Havuz)</p>
                                         {doctorVisits.filter(v => v.doctorId === selectedDoctor.id).map(n => (
-                                            <div key={n.id} className="bg-slate-50 p-4 rounded-2xl border relative group/note">
-                                                <div className="absolute right-3 top-3 flex gap-2">
-                                                    <button onClick={() => handleStartEditNote(n)} className="text-slate-300 hover:text-blue-500"><Icon name="pencil" size={14} /></button>
-                                                    <button onClick={() => handleDeleteNote(n.id)} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={14} /></button>
-                                                </div>
-                                                <span className="text-[9px] font-black text-blue-500 block">{n.date} {n.status === 'fail' ? '❌ (Görüşülemedi)' : '✅ (Görüşüldü)'}</span>
-                                                <p className="text-xs font-bold text-slate-700 mt-1.5 pr-12 leading-relaxed">"{n.rawText || n.text}"</p>
-                                            </div>
+                                            <div key={n.id} className="bg-slate-50 p-4 rounded-2xl border relative group/note"><div className="absolute right-3 top-3 flex gap-2"><button onClick={() => handleStartEditNote(n)} className="text-slate-300 hover:text-blue-500"><Icon name="pencil" size={14} /></button><button onClick={() => handleDeleteNote(n.id)} className="text-slate-300 hover:text-red-500 transition-colors"><Icon name="trash-2" size={14} /></button></div><span className="text-[9px] font-black text-blue-500 block">{n.date} {n.status === 'fail' ? '❌ (Görüşülemedi)' : '✅ (Görüşüldü)'}</span><p className="text-xs font-bold text-slate-700 mt-1.5 pr-12 leading-relaxed">"{n.rawText || n.text}"</p></div>
                                         ))}
                                     </div>
                                 </div>
@@ -553,8 +566,10 @@
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden p-8 animate-in">
                                 <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-lg font-extrabold text-slate-900 uppercase">{modalType === 'doctor' ? 'Yeni Hekim Ekle' : modalType === 'region' ? 'Yeni Rota Ekle' : 'Yeni Temsilci Ekle'}</h3>
-                                    <button onClick={() => setShowModal(false)} className="p-2 border rounded-xl"><Icon name="x" size={16} /></button>
+                                    <h3 className="text-lg font-extrabold text-slate-900 uppercase">
+                                        {modalType === 'doctor' ? (editingDoctorId ? 'Hekim Bilgilerini Düzenle' : 'Yeni Hekim Ekle') : modalType === 'region' ? 'Yeni Rota Ekle' : modalType === 'bulk_nav' ? '🗺️ Haritadan Kopyala-Yapıştır Sihirbazı' : 'Yeni Temsilci Ekle'}
+                                    </h3>
+                                    <button onClick={() => { setShowModal(false); setEditingDoctorId(null); }} className="p-2 border rounded-xl"><Icon name="x" size={16} /></button>
                                 </div>
                                 {modalType === 'region' && (
                                     <form onSubmit={handleAddRegion} className="space-y-4">
@@ -562,18 +577,32 @@
                                         <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black text-xs uppercase rounded-xl">Rotayı Kaydet</button>
                                     </form>
                                 )}
+                                
+                                {/* 🗺️ YENİ: HARİTADAN KOPYALA YAPIŞTIR SİHİRBAZININ TASARIMI */}
+                                {modalType === 'bulk_nav' && (
+                                    <form onSubmit={handleBulkNavParse} className="space-y-4">
+                                        <p className="text-[11px] font-bold text-slate-500 leading-relaxed bg-blue-50 text-blue-800 p-3 rounded-xl border border-blue-100">
+                                            💡 <b>Kullanım:</b> Google Haritalar'dan kopyaladığın darmadağınık klinik verilerini (isim, adres, tel karışık halde) aşağıdaki alana olduğu gibi yapıştır. Sistem otomatik ayıklayacaktır.
+                                        </p>
+                                        <textarea required placeholder="Harita verilerini buraya yapıştırın..." className="w-full p-4 border rounded-2xl font-bold text-xs h-48 outline-none resize-none bg-slate-50 text-slate-700" value={bulkNavText} onChange={e => setBulkNavText(e.target.value)} />
+                                        <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black text-xs uppercase rounded-xl shadow-md">Metni Çözümle ve Hekimleri Ekle</button>
+                                    </form>
+                                )}
+
                                 {modalType === 'doctor' && (
                                     <form onSubmit={handleAddDoctor} className="space-y-4">
                                         <input type="text" required placeholder="Hekim Adı Soyadı" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={doctorForm.name} onChange={e => setDoctorForm({...doctorForm, name: e.target.value})} />
                                         <input type="text" placeholder="Klinik / Hastane" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={doctorForm.clinic} onChange={e => setDoctorForm({...doctorForm, clinic: e.target.value})} />
-                                        <input type="text" placeholder="Telefon" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={doctorForm.phone} onChange={e => setDoctorForm({...doctorForm, phone: e.target.value})} />
+                                        <input type="text" placeholder="Telefon Numarası" className="w-full p-4 border rounded-xl font-bold text-sm outline-none" value={doctorForm.phone} onChange={e => setDoctorForm({...doctorForm, phone: e.target.value})} />
                                         <select required className="w-full p-4 border rounded-xl font-bold text-sm text-slate-600 outline-none bg-slate-50" value={doctorForm.regionId} onChange={e => setDoctorForm({...doctorForm, regionId: e.target.value})}><option value="">Bölge / Rota Seçin...</option>{regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
-                                        <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border">
-                                            <input type="checkbox" id="visitTodayCheck" className="w-4 h-4 text-blue-600" checked={doctorForm.visitToday} onChange={e => setDoctorForm({...doctorForm, visitToday: e.target.checked})} />
-                                            <label htmlFor="visitTodayCheck" className="text-xs font-bold text-slate-700 cursor-pointer select-none">Bu hekimi doğrudan "Bugün Gezilecekler" listeme ekle</label>
-                                        </div>
-                                        <textarea placeholder="İlk ziyaret notu..." className="w-full p-4 border rounded-xl font-bold text-xs h-16 outline-none resize-none bg-slate-50" value={doctorForm.note} onChange={e => setDoctorForm({...doctorForm, note: e.target.value})} />
-                                        <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black text-xs uppercase rounded-xl">Hekimi Ekle</button>
+                                        {!editingDoctorId && (
+                                            <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border">
+                                                <input type="checkbox" id="visitTodayCheck" className="w-4 h-4 text-blue-600" checked={doctorForm.visitToday} onChange={e => setDoctorForm({...doctorForm, visitToday: e.target.checked})} />
+                                                <label htmlFor="visitTodayCheck" className="text-xs font-bold text-slate-700 cursor-pointer select-none">Bu hekimi doğrudan "Bugün Gezilecekler" listeme ekle</label>
+                                            </div>
+                                        )}
+                                        {!editingDoctorId && <textarea placeholder="İlk ziyaret notu..." className="w-full p-4 border rounded-xl font-bold text-xs h-16 outline-none resize-none bg-slate-50" value={doctorForm.note} onChange={e => setDoctorForm({...doctorForm, note: e.target.value})} />}
+                                        <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black text-xs uppercase rounded-xl">{editingDoctorId ? 'Değişiklikleri Kaydet' : 'Hekimi Ekle'}</button>
                                     </form>
                                 )}
                                 {modalType === 'user' && (
