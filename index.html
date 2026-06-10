@@ -31,7 +31,7 @@
         window.FirebaseMethods = { doc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, orderBy, where, getDocs, writeBatch, signInWithEmailAndPassword, signOut, onAuthStateChanged };
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F8FAFC; color: #0F172A; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -59,7 +59,9 @@
                 }
             }, [name, size, className]);
             return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
-        };const App = () => {
+        };
+
+        const App = () => {
             const [isLoggedIn, setIsLoggedIn] = useState(false);
             const [currentUser, setCurrentUser] = useState('');
             const [isAdmin, setIsAdmin] = useState(false); 
@@ -77,7 +79,6 @@
             const [showModal, setShowModal] = useState(false);
             const [modalType, setModalType] = useState(''); 
             const [selectedDoctor, setSelectedDoctor] = useState(null);
-            const [draggedRegionId, setDraggedRegionId] = useState(null);
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
             const [doctorForm, setDoctorForm] = useState({ name: '', phone: '', clinic: '', regionId: '', note: '', visitToday: false });
@@ -90,8 +91,6 @@
             const [newNoteText, setNewNoteText] = useState('');
             
             const [editingNoteId, setEditingNoteId] = useState(null);
-            const [reminderDate, setReminderDate] = useState(''); 
-            const [reminderEmail, setReminderEmail] = useState('');
             const [visitStatus, setVisitStatus] = useState('success');
             const [bulkNavText, setBulkNavText] = useState('');
             const [parsedPreviewDoctors, setParsedPreviewDoctors] = useState([]);
@@ -101,14 +100,6 @@
             const cleanTurkish = (str) => String(str).toLocaleLowerCase('tr-TR').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c');
             const normalizePhone = (phone) => String(phone).replace(/\D/g, '').replace(/^0/, '').replace(/^90/, '');
 
-            const getTenDaysLaterISO = () => {
-                const now = new Date();
-                const tenDaysLater = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
-                const tzoffset = tenDaysLater.getTimezoneOffset() * 60000;
-                return new Date(tenDaysLater.getTime() - tzoffset).toISOString().slice(0, 16);
-            };
-
-            // VERİTABANI BAĞLANTI VE ESKİ VERİ UYUMLULUK SÜZGECİ
             useEffect(() => {
                 let unsubscribeAuth = () => {}; let unsubscribeRegions = () => {}; let unsubscribeDoctors = () => {};
                 let unsubscribeVisits = () => {}; let unsubscribeUsers = () => {}; let unsubscribeLogs = () => {};
@@ -126,7 +117,6 @@
                         } else { setIsLoggedIn(false); setCurrentUser(''); setIsAdmin(false); }
                     });
 
-                    // Eski girilen verilerin kaybolmaması için süzgeçler esnetildi
                     unsubscribeRegions = onSnapshot(collection(window.db, 'shared_regions'), (s) => {
                         const list = s.docs.map(d => ({ ...d.data(), id: d.id })).filter(r => r.deleted !== true);
                         setRegions(list.sort((a,b) => (a.order || 0) - (b.order || 0)));
@@ -352,7 +342,6 @@
             }, [doctors, activeRegion, searchTerm, doctorVisits]);
 
             const handleTabSelect = (tabId) => { setActiveRegion(tabId); setIsMobileMenuOpen(false); };
-            const handleExcelExport = () => {};
 
             if (!fbReady) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-blue-500 font-black animate-pulse">SİSTEM GERİ YÜKLENİYOR...</div>;
 
@@ -373,11 +362,18 @@
 
             return (
                 <div className="flex flex-col lg:flex-row min-h-screen relative">
-                    {isMobileMenuOpen && <div onClick={() => setIsMobileMenuOpen(false)} className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden"></div>}
+                    {/* Mobil Arka Plan Karartması (Overlay) */}
+                    {isMobileMenuOpen && (
+                        <div onClick={() => setIsMobileMenuOpen(false)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden transition-all duration-300"></div>
+                    )}
 
-                    <aside className="sidebar w-72 bg-slate-900 text-slate-400 p-6 flex flex-col h-screen fixed top-0 left-0 z-50 shadow-2xl">
+                    {/* Sol Sidebar Paneli (Responsive Güncellendi) */}
+                    <aside className={`sidebar w-72 bg-slate-900 text-slate-400 p-6 flex flex-col h-screen fixed top-0 left-0 z-50 shadow-2xl transition-transform duration-300 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
                         <div className="flex items-center justify-between mb-6 px-2">
                             <h1 className="text-xl font-extrabold text-white">Seviye<span className="text-blue-500">CRM</span></h1>
+                            <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-white rounded-lg">
+                                <Icon name="x" size={20} />
+                            </button>
                         </div>
 
                         <div className="space-y-1 overflow-y-auto flex-1 pr-1 custom-scrollbar">
@@ -423,7 +419,18 @@
                         </div>
                     </aside>
 
+                    {/* Ana İçerik Alanı (Mobil Üst Menü ve İyileştirmeler Eklendi) */}
                     <main className="main-content flex-1 lg:ml-72 p-4 lg:p-10 bg-slate-50 min-h-screen pb-24">
+                        
+                        {/* Mobil Cihazlar İçin Üst Bar ve Hamburger Butonu */}
+                        <div className="flex items-center justify-between bg-white border-b p-4 -mx-4 -mt-4 mb-6 lg:hidden sticky top-0 z-30 shadow-sm">
+                            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                                <Icon name="menu" size={22} />
+                            </button>
+                            <h1 className="text-base font-extrabold text-slate-800">Seviye<span className="text-blue-600">CRM</span></h1>
+                            <div className="w-10"></div> {/* Simetri Dengeleyici Boşluk */}
+                        </div>
+
                         {activeRegion === 'users_panel' ? (
                             <div className="space-y-6 animate-in">
                                 <header className="flex justify-between items-center mb-6"><h2 className="text-2xl font-extrabold text-slate-800">Saha Ekibi & Şifre Yönetimi</h2></header>
@@ -448,8 +455,8 @@
                         ) : activeRegion === 'report_panel' ? (
                             <div className="space-y-6 animate-in">
                                 <header className="mb-6"><h2 className="text-2xl font-extrabold text-slate-800">📋 Bugünün Saha Ziyaret Raporu</h2></header>
-                                <div className="bg-white rounded-[2rem] border p-6 shadow-sm overflow-hidden">
-                                    <table className="w-full text-left border-collapse">
+                                <div className="bg-white rounded-[2rem] border p-4 lg:p-6 shadow-sm overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-left border-collapse min-w-[600px]">
                                         <thead><tr className="border-b text-[10px] font-black uppercase text-slate-400"><th className="py-4 px-4">Hekim Adı</th><th className="py-4 px-4">Klinik</th><th className="py-4 px-4">Bölge</th><th className="py-4 px-4">Ziyaret Notu</th></tr></thead>
                                         <tbody className="divide-y text-xs font-bold text-slate-700">
                                             {filteredDoctorsMemo.map(doc => {
@@ -470,11 +477,11 @@
                             </div>
                         ) : (
                             <>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-extrabold text-slate-800">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                                    <h2 className="text-xl lg:text-2xl font-extrabold text-slate-800">
                                         {activeRegion === 'all' ? 'Tüm Portföy Havuzu' : activeRegion === 'today_panel' ? '📅 Bugün Gezilecek Hekimler' : activeRegion === 'failed_visits_panel' ? '🔴 Tekrar Uğranacaklar (2 Hafta)' : activeRegion === 'success_visits_panel' ? '🟢 Nadasa Bırakılanlar (2 Hafta)' : regions.find(r => r.id === activeRegion)?.name}
                                     </h2>
-                                    <button onClick={() => { setModalType('doctor'); setEditingDoctorId(null); setDoctorForm({ name: '', phone: '', clinic: '', regionId: ['all','today_panel','failed_visits_panel','success_visits_panel'].includes(activeRegion)?'':activeRegion, note: '', visitToday: false }); setShowModal(true); }} className="px-4 py-2.5 bg-blue-600 text-white font-bold text-xs uppercase rounded-xl shadow-md">+ Ekle</button>
+                                    <button onClick={() => { setModalType('doctor'); setEditingDoctorId(null); setDoctorForm({ name: '', phone: '', clinic: '', regionId: ['all','today_panel','failed_visits_panel','success_visits_panel'].includes(activeRegion)?'':activeRegion, note: '', visitToday: false }); setShowModal(true); }} className="w-full sm:w-auto text-center px-4 py-2.5 bg-blue-600 text-white font-bold text-xs uppercase rounded-xl shadow-md">+ Ekle</button>
                                 </div>
                                 <div className="mb-6 relative">
                                     <input type="text" placeholder="Hekim adı veya klinik aratın..." className="w-full pl-12 pr-4 py-4 bg-white border rounded-2xl outline-none shadow-sm text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
@@ -510,6 +517,7 @@
                         )}
                     </main>
 
+                    {/* Detay & Not Ekleme Penceresi */}
                     {selectedDoctor && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl p-6 sm:p-8 overflow-hidden animate-in">
@@ -540,11 +548,12 @@
                         </div>
                     )}
 
+                    {/* Standart Form Modalları */}
                     {showModal && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-8 animate-in">
                                 <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-lg font-extrabold text-slate-900 uppercase">
+                                    <h3 className="text-base font-extrabold text-slate-900 uppercase">
                                         {modalType === 'doctor' ? (editingDoctorId ? 'Hekim Kartını Güncelle' : 'Yeni Hekim Ekle') : modalType === 'region' ? (editingRegionId ? 'Rota Adını Düzenle' : 'Yeni Saha Rotası Ekle') : 'Haritadan Aktar'}
                                     </h3>
                                     <button onClick={() => { setShowModal(false); setEditingDoctorId(null); setEditingRegionId(null); }} className="p-2 border rounded-xl"><Icon name="x" size={16} /></button>
