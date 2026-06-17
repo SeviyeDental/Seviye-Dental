@@ -16,14 +16,15 @@
         import { getFirestore, doc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, orderBy, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         
-        // ESKİ VE ORİJİNAL PROJE BİLGİLERİ (Tüm verilerin burada)
+        // YENİ PROJE YAPILANDIRMASI
         const firebaseConfig = {
-            apiKey: "AIzaSyCJJP857pMmLoCc7CMzswHNwTp_TAybMdE",
-            authDomain: "webapp-d239c.firebaseapp.com",
-            projectId: "webapp-d239c",
-            storageBucket: "webapp-d239c.firebasestorage.app",
-            messagingSenderId: "965046349663",
-            appId: "1:965046349663:web:dbdda634472521accad0ea"
+            apiKey: "AIzaSyCQ_qONXThinopzahIic7FEEnyPw2A_ak4",
+            authDomain: "seviyedentalcrm.firebaseapp.com",
+            projectId: "seviyedentalcrm",
+            storageBucket: "seviyedentalcrm.firebasestorage.app",
+            messagingSenderId: "68531426376",
+            appId: "1:68531426376:web:a1f67a714ba9ab181bf47d",
+            measurementId: "G-R4D1M3G241"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -160,7 +161,7 @@
             const handleLoginSubmit = async (e) => {
                 e.preventDefault(); const { signInWithEmailAndPassword } = window.FirebaseMethods;
                 try { await signInWithEmailAndPassword(window.auth, loginForm.email, loginForm.password); setLoginForm({ email: '', password: '' }); } 
-                catch (err) { alert("❌ Giriş Başarısız! (E-posta ve Şifrenizi kontrol edin)"); }
+                catch (err) { alert("❌ Giriş Başarısız! " + err.message); }
             };
 
             const handleLogoutAction = async () => { const { signOut } = window.FirebaseMethods; await signOut(window.auth); };
@@ -282,191 +283,4 @@
 
             const handleParseToPreview = (e) => {
                 e.preventDefault(); if (!bulkNavText.trim()) return;
-                const lines = bulkNavText.split('\n'); let tempDocs = []; let currentName = ""; let currentPhone = ""; let currentClinic = "";
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i].trim(); if (!line) continue;
-                    const phoneMatch = line.match(/(0\s?\d{3}\s?\d{3}\s?\d{2}\s?\d{2})/);
-                    if (phoneMatch) { currentPhone = phoneMatch[0]; }
-                    else if (line.toLowerCase().includes('diş') || line.toLowerCase().includes('poliklini') || line.toLowerCase().includes('muayene')) {
-                        if (currentName) { tempDocs.push({ id: Date.now() + Math.random(), name: currentName, clinic: currentClinic || currentName, phone: currentPhone || '-' }); currentPhone = ""; currentClinic = ""; }
-                        currentName = line;
-                    } else if (line.length > 5 && line.length < 50 && !currentClinic) { currentClinic = line; }
-                    if (i === lines.length - 1 && currentName) { tempDocs.push({ id: Date.now() + Math.random(), name: currentName, clinic: currentClinic || currentName, phone: currentPhone || '-' }); }
-                }
-                setParsedPreviewDoctors(tempDocs); setModalType('bulk_preview_modal');
-            };
-
-            const handleSavePreviewToFirebase = async () => {
-                const { writeBatch, collection, doc } = window.FirebaseMethods;
-                const batch = writeBatch(window.db);
-                let defaultRegionId = regions[0]?.id || 'reg-1'; let addedIds = [];
-                for (const d of parsedPreviewDoctors) {
-                    const normP = normalizePhone(d.phone);
-                    const isDuplicate = doctors.some(x => cleanTurkish(x.name) === cleanTurkish(d.name) || (normP && x.normalizedPhone === normP));
-                    if (!isDuplicate) {
-                        const newRef = doc(collection(window.db, 'shared_doctors'));
-                        batch.set(newRef, { name: d.name, clinic: d.clinic, phone: d.phone, normalizedPhone: normP, searchKey: cleanTurkish(d.name) + " " + cleanTurkish(d.clinic), regionId: defaultRegionId, visitToday: false, lastVisitStatus: 'none', lastVisitTime: 0, timestamp: Date.now() });
-                        addedIds.push(newRef.id);
-                    }
-                }
-                await batch.commit();
-                await logSystemAction('bulk_nav_confirm', `Haritadan ${addedIds.length} hekim aktarıldı.`, addedIds);
-                setParsedPreviewDoctors([]); setBulkNavText(''); setShowModal(false);
-            };
-
-            const handleParseBulkNotes = () => {
-                if (!bulkNotesInput.trim()) return;
-                const lines = bulkNotesInput.split('\n');
-                const parsedList = [];
-                lines.forEach(line => {
-                    const trimmedLine = line.trim();
-                    if (!trimmedLine) return;
-                    let matchedDoctorId = '';
-                    let maxMatchLength = 0;
-                    const cleanLine = cleanTurkish(trimmedLine);
-                    doctors.forEach(docItem => {
-                        const cleanDocName = cleanTurkish(docItem.name);
-                        if (cleanLine.includes(cleanDocName) && cleanDocName.length > maxMatchLength) {
-                            matchedDoctorId = docItem.id;
-                            maxMatchLength = cleanDocName.length;
-                        }
-                    });
-                    let detectedStatus = 'success';
-                    const negativeWords = ['olumsuz', 'saglanamadi', 'gorusulmedi', 'yoktu', 'ameliyat', 'ulasilamadi', 'kabul etmedi', 'fail', '❌', 'kapali'];
-                    if (negativeWords.some(word => cleanLine.includes(word))) { detectedStatus = 'fail'; }
-                    parsedList.push({ id: Date.now() + Math.random(), doctorId: matchedDoctorId, text: trimmedLine, status: detectedStatus });
-                });
-                setParsedBulkNotes(parsedList);
-            };
-
-            const handleSaveBulkNotesToFirebase = async () => {
-                if (parsedBulkNotes.length === 0) return;
-                const hasEmptyDoctor = parsedBulkNotes.some(n => !n.doctorId);
-                if (hasEmptyDoctor) { alert("❌ Lütfen sistemin otomatik eşleştiremediği notlar için listeden hekim seçin!"); return; }
-                const { writeBatch, collection, doc } = window.FirebaseMethods;
-                const batch = writeBatch(window.db);
-                const addedVisitIds = [];
-                try {
-                    parsedBulkNotes.forEach(noteItem => {
-                        const newVisitRef = doc(collection(window.db, 'shared_visits'));
-                        batch.set(newVisitRef, { doctorId: noteItem.doctorId, text: noteItem.text, rawText: noteItem.text, date: new Date().toLocaleString('tr-TR'), timestamp: Date.now(), user: currentUser, status: noteItem.status });
-                        addedVisitIds.push(newVisitRef.id);
-                        const doctorRef = doc(collection(window.db, 'shared_doctors', noteItem.doctorId));
-                        batch.update(doctorRef, { lastVisitStatus: noteItem.status, lastVisitTime: Date.now() });
-                    });
-                    await batch.commit();
-                    await logSystemAction('bulk_add_notes', `Toplu giriş ile ${parsedBulkNotes.length} not eklendi.`, addedVisitIds);
-                    alert(`✅ İşlem tamam!`);
-                    setParsedBulkNotes([]); setBulkNotesInput(''); setActiveRegion('report_panel');
-                } catch (err) { alert("Hata oluştu!"); }
-            };
-
-            const filteredDoctorsMemo = useMemo(() => {
-                const todayStr = new Date().toLocaleDateString('tr-TR');
-                const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-                const targetKey = cleanTurkish(searchTerm);
-                const baseList = doctors.filter(doc => {
-                    if (activeRegion === 'failed_visits_panel') return doc.lastVisitStatus === 'fail' && doc.lastVisitTime >= fourteenDaysAgo;
-                    if (activeRegion === 'success_visits_panel') return doc.lastVisitStatus === 'success' && doc.lastVisitTime >= fourteenDaysAgo;
-                    if (activeRegion === 'report_panel') return doctorVisits.some(v => v.doctorId === doc.id && v.date && v.date.split(' ')[0] === todayStr && v.deleted !== true);
-                    if (activeRegion === 'today_panel') return doc.visitToday === true;
-                    if (activeRegion === 'all') return true;
-                    return doc.regionId === activeRegion;
-                });
-                return baseList.filter(doc => {
-                    if (!targetKey) return true;
-                    const fallbackKey = cleanTurkish(doc.name) + " " + cleanTurkish(doc.clinic || '');
-                    return (doc.searchKey && doc.searchKey.includes(targetKey)) || fallbackKey.includes(targetKey);
-                });
-            }, [doctors, activeRegion, searchTerm, doctorVisits]);
-
-            const handleTabSelect = (tabId) => { setActiveRegion(tabId); setIsMobileMenuOpen(false); };
-
-            if (!fbReady) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-blue-500 font-black animate-pulse">SİSTEM YÜKLENİYOR...</div>;
-
-            if (!isLoggedIn) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-                        <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-10">
-                            <form onSubmit={handleLoginSubmit} className="space-y-4">
-                                <h1 className="text-2xl font-black text-center text-slate-800">Seviye Dental <span className="text-blue-600">CRM</span></h1>
-                                <input type="email" required className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-slate-700 outline-none" placeholder="E-Posta" value={loginForm.email} onChange={e => setLoginForm({...loginForm, email: e.target.value})} />
-                                <input type="password" required className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-slate-700 outline-none" placeholder="Şifre" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} />
-                                <button type="submit" className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl uppercase">Sisteme Giriş Yap</button>
-                            </form>
-                        </div>
-                    </div>
-                );
-            }
-
-            return (
-                <div className="flex flex-col lg:flex-row min-h-screen relative">
-                    {isMobileMenuOpen && (<div onClick={() => setIsMobileMenuOpen(false)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden"></div>)}
-                    <aside className={`sidebar w-72 bg-slate-900 text-slate-400 p-6 flex flex-col h-screen fixed top-0 left-0 z-50 shadow-2xl transition-transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-                        <div className="flex items-center justify-between mb-6 px-2"><h1 className="text-xl font-extrabold text-white">Seviye<span className="text-blue-500">CRM</span></h1></div>
-                        <div className="space-y-1 overflow-y-auto flex-1 pr-1 custom-scrollbar">
-                            <button onClick={() => handleTabSelect('today_panel')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'today_panel' ? 'bg-amber-500 text-white' : 'bg-slate-800/40 text-amber-400'}`}><span className="flex items-center gap-3"><Icon name="calendar-check" size={18} /> Bugün Gezilecekler</span></button>
-                            <button onClick={() => handleTabSelect('report_panel')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'report_panel' ? 'bg-emerald-600 text-white' : 'bg-slate-800/40 text-emerald-400'}`}><span className="flex items-center gap-3"><Icon name="file-text" size={18} /> Akşam Saha Raporu</span></button>
-                            <button onClick={() => handleTabSelect('bulk_notes_panel')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'bulk_notes_panel' ? 'bg-blue-600 text-white' : 'bg-slate-800/40 text-blue-400'}`}><span className="flex items-center gap-3"><Icon name="clipboard-list" size={18} /> 📝 Toplu Not Girişi</span></button>
-                            <div className="pt-2 pb-1 px-2"><h2 className="text-[10px] font-black uppercase text-slate-500 tracking-wider">2 Haftalık Durum Takibi</h2></div>
-                            <button onClick={() => handleTabSelect('failed_visits_panel')} className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl font-bold text-xs ${activeRegion === 'failed_visits_panel' ? 'bg-red-600 text-white shadow-lg' : 'bg-slate-800/40 text-red-400'}`}><span className="flex items-center gap-3"><Icon name="phone-off" size={14} /> 🔴 Tekrar Uğranacaklar</span></button>
-                            <button onClick={() => handleTabSelect('success_visits_panel')} className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl font-bold text-xs mb-4 ${activeRegion === 'success_visits_panel' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-800/40 text-indigo-400'}`}><span className="flex items-center gap-3"><Icon name="check-circle" size={14} /> 🟢 Nadasa Bırakılanlar</span></button>
-                            <div className="flex items-center justify-between mb-2 px-2 border-t border-slate-800 pt-3"><h2 className="text-xs font-black uppercase text-slate-400 tracking-wider">Bölgeler / Rotalar</h2><button onClick={() => { setModalType('region'); setEditingRegionId(null); setRegionForm({name:''}); setShowModal(true); }} className="p-1 text-blue-400"><Icon name="plus" size={18} /></button></div>
-                            <button onClick={() => handleTabSelect('all')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm ${activeRegion === 'all' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'}`}><span className="flex items-center gap-3"><Icon name="globe" size={18} /> Tüm Hekimler</span><span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-black">{doctors.length}</span></button>
-                            {regions.map(reg => (
-                                <div key={reg.id} onClick={() => handleTabSelect(reg.id)} className={`w-full flex items-center justify-between px-4 py-2 rounded-xl font-medium text-sm group/reg relative transition-all ${activeRegion === reg.id ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800/60'}`}>
-                                    <span className="flex items-center gap-3 truncate"><Icon name="map-pin" size={16} /><span className="truncate">{reg.name}</span></span>
-                                    <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-black group-hover/reg:scale-0 transition-transform">{doctors.filter(d => d.regionId === reg.id).length}</span>
-                                </div>
-                            ))}
-                            <div className="mt-4 pt-4 border-t border-slate-800 space-y-1">
-                                <button onClick={() => { setModalType('bulk_nav'); setShowModal(true); }} className="w-full flex items-center gap-3 px-4 py-2.5 bg-blue-950/40 text-blue-400 font-bold text-xs rounded-xl"><Icon name="map" size={16} /> Haritadan Toplu Aktar</button>
-                                <button onClick={() => fileInputRef.current.click()} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-xs text-blue-400"><Icon name="upload" size={16} /> Excel'den Toplu Yükle</button>
-                                <input type="file" ref={fileInputRef} onChange={handleExcelImport} accept=".xlsx, .xls" className="hidden" />
-                                <button onClick={() => handleTabSelect('users_panel')} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-xs text-slate-400 hover:bg-slate-800"><Icon name="settings" size={16} /> Ekip & Şifre Yönetimi</button>
-                                {isAdmin && (<button onClick={() => handleTabSelect('logs_panel')} className={`w-full flex items-center gap-3 px-4 py-3 bg-red-950/20 text-red-400 border border-red-900/30 rounded-xl font-bold text-xs mt-3 ${activeRegion === 'logs_panel' ? 'bg-red-900 text-white shadow-lg' : ''}`}><Icon name="shield-alert" size={16} /> 🛡️ Güvenlik & Sistem Logları</button>)}
-                            </div>
-                        </div>
-                        <div className="mt-auto pt-4 flex items-center justify-between bg-slate-800/40 p-3 rounded-2xl"><div className="truncate"><p className="text-xs font-black text-white truncate">{currentUser}</p><p className="text-[8px] text-emerald-400 font-bold uppercase tracking-wider">Oturum Açık</p></div><button onClick={handleLogoutAction} className="p-2 text-red-400 hover:bg-red-400/10 rounded-xl"><Icon name="log-out" size={18} /></button></div>
-                    </aside>
-                    <main className="main-content flex-1 lg:ml-72 p-4 lg:p-10 bg-slate-50 min-h-screen pb-24">
-                        <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden mb-4 p-2 bg-white rounded-lg shadow"><Icon name="menu" /></button>
-                        {activeRegion === 'users_panel' ? (
-                            <div className="space-y-6 animate-in">
-                                <header className="flex justify-between items-center mb-6"><h2 className="text-2xl font-extrabold text-slate-800">Saha Ekibi & Şifre Yönetimi</h2></header>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{systemUsers.map(u => (<div key={u.id} className="bg-white p-6 rounded-3xl border shadow-sm"><h4 className="text-lg font-black text-slate-800">{u.name}</h4><p className="text-xs text-slate-400 font-bold">Kullanıcı E-Posta: {u.email} | Yetki: {u.role}</p></div>))}</div>
-                            </div>
-                        ) : activeRegion === 'logs_panel' ? (
-                            <div className="space-y-6 animate-in">
-                                <header className="mb-6"><h2 className="text-2xl font-extrabold text-slate-800">🛡️ Sistem İşlem ve Güvenlik Kara Kutusu</h2></header>
-                                <div className="bg-white rounded-[2rem] border p-6 shadow-sm"><div className="space-y-3 max-h-[70vh] overflow-y-auto custom-scrollbar">{systemLogs.map(log => (<div key={log.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 p-4 rounded-2xl border gap-4"><div><p className="text-xs font-extrabold text-slate-700">"{log.details}"</p><span className="text-[9px] text-slate-400 font-bold">👤 Yapan: {log.user} | ⏱ {log.date}</span></div><button onClick={() => handleUndoAction(log)} className="py-2 px-4 bg-white text-red-600 font-black rounded-xl border text-xs shadow-sm uppercase tracking-wider">Geri Al (Undo)</button></div>))}</div></div>
-                            </div>
-                        ) : (
-                            <div className="space-y-6 animate-in">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-extrabold text-slate-800">{activeRegion === 'all' ? 'Tüm Portföy Havuzu' : 'Hekimler'}</h2>
-                                    <button onClick={() => { setModalType('doctor'); setEditingDoctorId(null); setShowModal(true); }} className="px-4 py-2.5 bg-blue-600 text-white font-bold text-xs uppercase rounded-xl">+ Ekle</button>
-                                </div>
-                                <div className="mb-6 relative"><input type="text" placeholder="Hekim adı aratın..." className="w-full pl-12 pr-4 py-4 bg-white border rounded-2xl outline-none shadow-sm text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/><div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" size={20} /></div></div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                                    {filteredDoctorsMemo.map(doc => (
-                                        <div key={doc.id} className="bg-white rounded-3xl border-l-8 p-6 shadow-sm border-slate-100">
-                                            <h3 className="text-lg font-extrabold text-slate-800">{doc.name}</h3>
-                                            <p className="text-xs text-slate-400 font-bold">{doc.clinic}</p>
-                                            <div className="flex gap-2 mt-4">
-                                                <button onClick={() => { setSelectedDoctor(doc); }} className="flex-1 py-2.5 bg-slate-900 text-white font-bold text-xs rounded-xl">Detay</button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </main>
-                </div>
-            );
-        };
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                const lines = bulkNavText.split('\n'); let tempDocs = []; let currentName = ""; let currentPhone = ""; let currentClinic
